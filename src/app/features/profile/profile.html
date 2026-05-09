@@ -1,0 +1,345 @@
+<app-confirm-dialog
+  [visible]="showConfirm"
+  [message]="confirmMessage"
+  [confirmText]="confirmText"
+  [destructive]="confirmDestructive"
+  (confirmed)="onConfirmed()"
+  (cancelled)="onCancelled()"
+/>
+
+@if (showUserList) {
+  <div class="user-list-overlay">
+    <div class="user-list-topbar">
+      <button class="back-btn" (click)="closeUserList()">
+        <span class="material-symbols-rounded">arrow_back</span>
+      </button>
+      <h3>{{ userListTitle }}</h3>
+      <div class="spacer"></div>
+    </div>
+    <div class="user-list-body">
+      @if (userListLoading) {
+        <div class="user-list-loading">
+          <div class="spinner"></div>
+        </div>
+      } @else if (userList.length === 0) {
+        <div class="user-list-empty">
+          <span class="material-symbols-rounded">person_off</span>
+          <p>No {{ userListTitle.toLowerCase() }} yet</p>
+        </div>
+      } @else {
+        @for (user of userList; track user.uid) {
+          <div class="user-list-item" (click)="goToUserProfile(user.uid)">
+            <div class="user-list-avatar">
+              @if (user.photoURL) {
+                <img [src]="user.photoURL" alt="avatar">
+              } @else {
+                <span class="material-symbols-rounded">account_circle</span>
+              }
+            </div>
+            <span class="user-list-name">{{ user.username }}</span>
+          </div>
+        }
+      }
+    </div>
+  </div>
+}
+
+<div class="profile-header">
+  <div class="header-spacer"></div>
+  <img src="voyaa.png" alt="Voyaa" class="header-logo">
+  <a class="header-bell" routerLink="/activity">
+    <span class="material-symbols-rounded">notifications</span>
+  </a>
+</div>
+
+@if (loading) {
+  <div class="profile-page">
+    <div class="profile-details">
+      <div class="top-row">
+        <div class="avatar-section">
+          <div class="skeleton-circle"></div>
+        </div>
+        <div class="stats-section">
+          <div class="skeleton-line" style="width: 120px; height: 16px"></div>
+          <div class="stats-row">
+            <div class="skeleton-line" style="width: 60px; height: 14px"></div>
+            <div class="skeleton-line" style="width: 60px; height: 14px"></div>
+            <div class="skeleton-line" style="width: 60px; height: 14px"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="divider"></div>
+    <div class="video-grid">
+      @for (i of [1,2,3]; track i) {
+        <div class="grid-item skeleton-grid"></div>
+      }
+    </div>
+  </div>
+}
+
+@if (profileUser && !loading) {
+  <div class="profile-page">
+    <div class="profile-details">
+      <div class="top-row">
+        <div class="avatar-section" (click)="isOwnProfile && avatarInput.click()">
+          @if (profileUser.photoURL) {
+            <img class="avatar-img" [src]="profileUser.photoURL" alt="Profile photo">
+          } @else {
+            <span class="material-symbols-rounded avatar">account_circle</span>
+          }
+          @if (isOwnProfile) {
+            <div class="avatar-badge">
+              <span class="material-symbols-rounded">photo_camera</span>
+            </div>
+          }
+          @if (uploadingImage) {
+            <div class="avatar-loading"></div>
+          }
+          <input #avatarInput type="file" accept="image/*" hidden (change)="onAvatarPick($event)">
+        </div>
+        <div class="stats-section">
+          <h2 class="username">{{ profileUser.username }}</h2>
+          <div class="stats-row">
+            <div class="stat">
+              <span class="stat-number">{{ videos.length }}</span>
+              <span class="stat-label">posts</span>
+            </div>
+            <div class="stat clickable" (click)="openUserList('followers')">
+              <span class="stat-number">{{ profileUser.followerCount }}</span>
+              <span class="stat-label">followers</span>
+            </div>
+            <div class="stat clickable" (click)="openUserList('following')">
+              <span class="stat-number">{{ profileUser.followingCount }}</span>
+              <span class="stat-label">following</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="user-info">
+        @if (profileUser.bio) {
+          <p class="bio">{{ profileUser.bio }}</p>
+        }
+      </div>
+      @if (isOwnProfile) {
+        <div class="profile-actions">
+          <button class="edit-btn" (click)="openEdit()">Edit Profile</button>
+          <div class="menu-wrapper">
+            <button class="menu-btn" (click)="toggleMenu()">
+              <span class="material-symbols-rounded">more_horiz</span>
+            </button>
+            @if (showMenu) {
+              <div class="menu-backdrop" (click)="closeMenu()"></div>
+              <div class="menu-dropdown">
+                <button class="menu-item" (click)="logout()">
+                  <span class="material-symbols-rounded">logout</span>
+                  Log Out
+                </button>
+              </div>
+            }
+          </div>
+        </div>
+      } @else {
+        <div class="profile-actions">
+          <button class="follow-btn" [class.following]="isFollowing" (click)="toggleFollow()">
+            {{ isFollowing ? 'Following' : 'Follow' }}
+          </button>
+        </div>
+      }
+    </div>
+
+    @if (isEditing) {
+      <div class="edit-backdrop" (click)="cancelEdit()"></div>
+      <div class="edit-panel">
+        <div class="edit-header">
+          <h3>Edit Profile</h3>
+          <button class="close-btn" (click)="cancelEdit()">
+            <span class="material-symbols-rounded">close</span>
+          </button>
+        </div>
+        <div class="edit-form">
+          <label>Username</label>
+          <input type="text" [(ngModel)]="editUsername" placeholder="Username">
+          <label>Bio</label>
+          <textarea [(ngModel)]="editBio" placeholder="Tell us about yourself..." rows="3"></textarea>
+          <button class="save-btn" (click)="saveProfile()">Save</button>
+        </div>
+      </div>
+    }
+
+    <div class="tab-bar">
+      <button class="tab" [class.active]="activeTab === 'posts'" (click)="switchTab('posts')">
+        <span class="material-symbols-rounded">grid_on</span>
+      </button>
+      <button class="tab" [class.active]="activeTab === 'saved'" (click)="switchTab('saved')">
+        <span class="material-symbols-rounded">bookmark</span>
+      </button>
+    </div>
+
+    @if (activeTab === 'posts') {
+      <div class="video-grid">
+        @for (video of videos; track video.id; let i = $index) {
+          <div class="grid-item" (click)="openVideoViewer(i)">
+            <video [src]="video.cloudinaryUrl" muted preload="metadata"></video>
+            <div class="grid-overlay">
+              <span class="material-symbols-rounded">play_arrow</span>
+            </div>
+            @if (isOwnProfile) {
+              <button class="delete-btn" (click)="deleteVideo(video, $event)">
+                <span class="material-symbols-rounded">delete</span>
+              </button>
+            }
+          </div>
+        }
+        @if (videos.length === 0) {
+          <div class="empty-state">
+            <span class="material-symbols-rounded">videocam_off</span>
+            <p>No videos posted yet</p>
+          </div>
+        }
+      </div>
+    }
+
+    @if (activeTab === 'saved') {
+      @if (!showSavedGroup) {
+        <div class="saved-grid">
+          @for (group of savedGroups; track group.country) {
+            <div class="saved-card" (click)="openSavedGroup(group)">
+              <video [src]="group.thumbnail" muted preload="metadata"></video>
+              <div class="saved-card-overlay">
+                <span class="saved-country">{{ group.country }}</span>
+                <span class="saved-count">{{ group.videos.length }} {{ group.videos.length === 1 ? 'video' : 'videos' }}</span>
+              </div>
+            </div>
+          }
+          @if (savedGroups.length === 0) {
+            <div class="empty-state">
+              <span class="material-symbols-rounded">bookmark_border</span>
+              <p>No saved videos yet</p>
+            </div>
+          }
+        </div>
+      } @else {
+        <div class="saved-group-header">
+          <button class="back-btn" (click)="closeSavedGroup()">
+            <span class="material-symbols-rounded">arrow_back</span>
+          </button>
+          <h3>{{ savedGroupCountry }}</h3>
+        </div>
+        <div class="video-grid">
+          @for (video of savedGroupVideos; track video.id; let i = $index) {
+            <div class="grid-item">
+              <video [src]="video.cloudinaryUrl" muted preload="metadata"></video>
+            </div>
+          }
+        </div>
+      }
+    }
+  </div>
+}
+
+@if (showVideoViewer) {
+  <div class="video-viewer">
+    <button class="viewer-back" (click)="closeVideoViewer()">
+      <span class="material-symbols-rounded">arrow_back</span>
+    </button>
+    <div class="viewer-container" #viewerContainer>
+      @for (video of videos; track video.id) {
+        <div class="viewer-card">
+          <video #viewerVideo [src]="video.cloudinaryUrl" loop [muted]="viewerMuted" playsinline
+            (pointerdown)="onViewerPointerDown($event, video)"
+            (pointerup)="onViewerPointerUp($event, video)"></video>
+          <div class="viewer-overlay" (click)="$event.stopPropagation()">
+            <div class="overlay-top">
+              <a class="creator-avatar" [routerLink]="['/profile', profileUser.uid]">
+                @if (profileUser.photoURL) {
+                  <img [src]="profileUser.photoURL" alt="avatar">
+                } @else {
+                  <span class="material-symbols-rounded">account_circle</span>
+                }
+              </a>
+              <span class="viewer-creator">{{ profileUser.username }}</span>
+              <span class="viewer-timestamp">{{ timeAgo(video.createdAt) }}</span>
+            </div>
+            <span class="viewer-title">{{ video.title }}</span>
+            <span class="viewer-location"><span class="material-symbols-rounded location-icon">location_on</span> {{ video.location.city }}, {{ video.location.country }}</span>
+          </div>
+          <div class="viewer-actions" (click)="$event.stopPropagation()">
+            <button class="action-btn" [class.liked]="video.liked" (click)="toggleLike(video)">
+              <span class="material-symbols-rounded">{{ video.liked ? 'favorite' : 'favorite_border' }}</span>
+              <span class="count">{{ video.likeCount }}</span>
+            </button>
+            <button class="action-btn" (click)="openComments(video)">
+              <span class="material-symbols-rounded">chat_bubble</span>
+              <span class="count">{{ video.commentCount }}</span>
+            </button>
+            <button class="action-btn" [class.bookmarked]="video.bookmarked" (click)="toggleBookmark(video)">
+              <span class="material-symbols-rounded">{{ video.bookmarked ? 'bookmark' : 'bookmark_border' }}</span>
+            </button>
+          </div>
+          @if (video.showHeart) {
+            <div class="heart-animation">
+              <span class="material-symbols-rounded">favorite</span>
+            </div>
+          }
+          @if (showMuteIndicator) {
+            <div class="mute-indicator" [class.fade-out]="muteIndicatorFading">
+              <span class="material-symbols-rounded">{{ viewerMuted ? 'volume_off' : 'volume_up' }}</span>
+            </div>
+          }
+          @if (showPauseIndicator) {
+            <div class="pause-indicator" [class.fade-out]="pauseIndicatorFading">
+              <span class="material-symbols-rounded">{{ isPaused ? 'pause' : 'play_arrow' }}</span>
+            </div>
+          }
+        </div>
+      }
+    </div>
+  </div>
+
+  @if (showComments) {
+    <div class="comments-backdrop" (click)="closeComments()"></div>
+    <div class="comments-panel">
+      <div class="comments-header">
+        <h3>Comments</h3>
+        <button class="close-btn" (click)="closeComments()">
+          <span class="material-symbols-rounded">close</span>
+        </button>
+      </div>
+      <div class="comments-list">
+        @for (comment of comments; track comment.id) {
+          <div class="comment">
+            <div class="comment-avatar">
+              @if (comment.photoURL) {
+                <img [src]="comment.photoURL" alt="avatar">
+              } @else {
+                <span class="material-symbols-rounded">account_circle</span>
+              }
+            </div>
+            <div class="comment-body">
+              <div class="comment-top">
+                <span class="comment-user">{{ comment.username }}</span>
+                <span class="comment-time">{{ timeAgo(comment.createdAt) }}</span>
+              </div>
+              <span class="comment-text">{{ comment.text }}</span>
+            </div>
+            @if (comment.userId === authService.currentUser()?.uid) {
+              <button class="comment-delete" (click)="deleteComment(comment)">
+                <span class="material-symbols-rounded">close</span>
+              </button>
+            }
+          </div>
+        }
+        @if (comments.length === 0) {
+          <p class="no-comments">No comments yet. Be the first!</p>
+        }
+      </div>
+      <div class="comment-input">
+        <input type="text" [(ngModel)]="newComment" placeholder="Add a comment..." (keyup.enter)="postComment()">
+        <button (click)="postComment()" [disabled]="!newComment.trim()">
+          <span class="material-symbols-rounded">send</span>
+        </button>
+      </div>
+    </div>
+  }
+}

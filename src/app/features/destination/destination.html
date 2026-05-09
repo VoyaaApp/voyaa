@@ -1,0 +1,161 @@
+<app-confirm-dialog
+  [visible]="showConfirm"
+  [message]="confirmMessage"
+  confirmText="Delete"
+  [destructive]="true"
+  (confirmed)="onConfirmed()"
+  (cancelled)="onCancelled()"
+/>
+
+<div class="destination-page">
+  <div class="dest-header">
+    <button class="back-btn" (click)="goBack()">
+      <span class="material-symbols-rounded">arrow_back</span>
+    </button>
+    <div class="dest-header-info">
+      <h2>{{ country }}</h2>
+      <span class="dest-subtitle">{{ totalVideos }} videos · {{ cities.length }} {{ cities.length === 1 ? 'city' : 'cities' }}</span>
+    </div>
+  </div>
+
+  @if (loading) {
+    <div class="city-section">
+      <div class="video-grid">
+        @for (i of [1,2,3,4,5,6]; track i) {
+          <div class="grid-item skeleton-item"></div>
+        }
+      </div>
+    </div>
+  }
+
+  @if (!loading) {
+    @for (city of cities; track city.name) {
+      <div class="city-section">
+        <div class="city-header">
+          <span class="material-symbols-rounded city-icon">location_on</span>
+          <h3>{{ city.name }}</h3>
+          <span class="city-count">{{ city.videos.length }}</span>
+        </div>
+        <div class="video-grid">
+          @for (video of city.videos; track video.id; let i = $index) {
+            <div class="grid-item" (click)="openViewer(city.videos, i)">
+              <video [src]="video.cloudinaryUrl" muted playsinline preload="metadata"></video>
+              <div class="grid-overlay">
+                <span class="grid-title">{{ video.title }}</span>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    }
+  }
+</div>
+
+@if (showViewer) {
+  <div class="viewer-fullscreen">
+    <button class="viewer-close" (click)="closeViewer()">
+      <span class="material-symbols-rounded">close</span>
+    </button>
+    <div class="viewer-scroll" #viewerContainer>
+      @for (video of viewerVideos; track video.id) {
+        <div class="viewer-card">
+          <video #viewerVideo [src]="video.cloudinaryUrl" loop [muted]="viewerMuted" playsinline
+            (pointerdown)="onPointerDown($event, video)"
+            (pointerup)="onPointerUp($event, video)"></video>
+          <div class="viewer-overlay" (click)="$event.stopPropagation()">
+            <div class="overlay-top">
+              <a class="creator-avatar" [routerLink]="['/profile', video.userId]">
+                @if (video.photoURL) {
+                  <img [src]="video.photoURL" alt="">
+                } @else {
+                  <span class="material-symbols-rounded">account_circle</span>
+                }
+              </a>
+              <a class="creator-name" [routerLink]="['/profile', video.userId]">{{ video.username }}</a>
+              <span class="viewer-timestamp">{{ timeAgo(video.createdAt) }}</span>
+            </div>
+            <span class="viewer-title">{{ video.title }}</span>
+            <span class="viewer-location">
+              <span class="material-symbols-rounded loc-icon">location_on</span>
+              {{ video.location.city }}, {{ video.location.country }}
+            </span>
+          </div>
+          <div class="viewer-actions" (click)="$event.stopPropagation()">
+            <button class="action-btn" [class.liked]="video.liked" (click)="toggleLike(video)">
+              <span class="material-symbols-rounded">{{ video.liked ? 'favorite' : 'favorite_border' }}</span>
+              <span class="count">{{ formatCount(video.likeCount) }}</span>
+            </button>
+            <button class="action-btn" (click)="openComments(video)">
+              <span class="material-symbols-rounded">chat_bubble</span>
+              <span class="count">{{ formatCount(video.commentCount) }}</span>
+            </button>
+            <button class="action-btn" [class.bookmarked]="video.bookmarked" (click)="toggleBookmark(video)">
+              <span class="material-symbols-rounded">{{ video.bookmarked ? 'bookmark' : 'bookmark_border' }}</span>
+            </button>
+          </div>
+          @if (video.showHeart) {
+            <div class="heart-animation">
+              <span class="material-symbols-rounded">favorite</span>
+            </div>
+          }
+          @if (showMuteIndicator) {
+            <div class="mute-indicator" [class.fade-out]="muteIndicatorFading">
+              <span class="material-symbols-rounded">{{ viewerMuted ? 'volume_off' : 'volume_up' }}</span>
+            </div>
+          }
+          @if (showPauseIndicator) {
+            <div class="pause-indicator" [class.fade-out]="pauseIndicatorFading">
+              <span class="material-symbols-rounded">{{ isPaused ? 'pause' : 'play_arrow' }}</span>
+            </div>
+          }
+        </div>
+      }
+    </div>
+  </div>
+}
+
+@if (showComments) {
+  <div class="comments-backdrop" (click)="closeComments()"></div>
+  <div class="comments-panel">
+    <div class="comments-header">
+      <h3>Comments</h3>
+      <button class="close-btn" (click)="closeComments()">
+        <span class="material-symbols-rounded">close</span>
+      </button>
+    </div>
+    <div class="comments-list">
+      @for (comment of comments; track comment.id) {
+        <div class="comment">
+          <div class="comment-avatar">
+            @if (comment.photoURL) {
+              <img [src]="comment.photoURL" alt="">
+            } @else {
+              <span class="material-symbols-rounded">account_circle</span>
+            }
+          </div>
+          <div class="comment-body">
+            <div class="comment-top">
+              <a class="comment-user" [routerLink]="['/profile', comment.userId]">{{ comment.username }}</a>
+              <span class="comment-time">{{ timeAgo(comment.createdAt) }}</span>
+            </div>
+            <span class="comment-text">{{ comment.text }}</span>
+          </div>
+          @if (comment.userId === authService.currentUser()?.uid) {
+            <button class="comment-delete" (click)="deleteComment(comment)">
+              <span class="material-symbols-rounded">close</span>
+            </button>
+          }
+        </div>
+      }
+      @if (comments.length === 0) {
+        <p class="no-comments">No comments yet. Be the first!</p>
+      }
+    </div>
+    <div class="comment-input">
+      <input type="text" [(ngModel)]="newComment" placeholder="Add a comment..." (keyup.enter)="postComment()">
+      <button (click)="postComment()" [disabled]="!newComment.trim()">
+        <span class="material-symbols-rounded">send</span>
+      </button>
+    </div>
+  </div>
+}

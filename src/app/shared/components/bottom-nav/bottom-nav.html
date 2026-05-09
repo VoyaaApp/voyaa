@@ -1,0 +1,22 @@
+<nav class="bottom-nav">
+  <a routerLink="/explore" routerLinkActive="active" class="nav-item">
+    <span class="material-symbols-rounded">home</span>
+    <span class="nav-label">Explore</span>
+  </a>
+  <a routerLink="/feed" routerLinkActive="active" class="nav-item">
+    <span class="material-symbols-rounded">play_circle</span>
+    <span class="nav-label">Feed</span>
+  </a>
+  <a routerLink="/globe" routerLinkActive="active" class="nav-item">
+    <span class="material-symbols-rounded">public</span>
+    <span class="nav-label">Globe</span>
+  </a>
+  <a routerLink="/search" routerLinkActive="active" class="nav-item">
+    <span class="material-symbols-rounded">search</span>
+    <span class="nav-label">Search</span>
+  </a>
+  <a routerLink="/profile" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" class="nav-item">
+    <span class="material-symbols-rounded">person</span>
+    <span class="nav-label">Profile</span>
+  </a>
+</nav>

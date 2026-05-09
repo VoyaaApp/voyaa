@@ -1,0 +1,173 @@
+<div class="explore">
+
+  <!-- ── Top bar ── -->
+  <div class="top-bar">
+    <img src="voyaa.png" alt="Voyaa" class="logo">
+    <div class="top-actions">
+      <a class="top-btn" routerLink="/upload">
+        <span class="material-symbols-rounded">add_circle</span>
+      </a>
+      <a class="top-btn" routerLink="/activity">
+        <span class="material-symbols-rounded">notifications</span>
+      </a>
+    </div>
+  </div>
+
+  <!-- ── Search ── -->
+  <div class="search-bar">
+    <span class="material-symbols-rounded search-icon">search</span>
+    <input type="text" [(ngModel)]="searchQuery" (input)="onSearch()" placeholder="Where do you want to go?">
+    @if (searchQuery) {
+      <button class="search-clear" (click)="searchQuery = ''; onSearch()">
+        <span class="material-symbols-rounded">close</span>
+      </button>
+    }
+  </div>
+
+  <!-- ── Region chips ── -->
+  <div class="chip-bar">
+    @for (region of regions; track region) {
+      <button class="chip" [class.active]="activeRegion === region" (click)="filterByRegion(region)">
+        {{ region }}
+      </button>
+    }
+  </div>
+
+  <!-- ── Mini map card ── -->
+  <div class="mini-map" (click)="openGlobe()">
+    <div class="mini-map-container" #mapContainer></div>
+    <div class="mini-map-overlay">
+      <span class="material-symbols-rounded">public</span>
+      <span class="mini-map-label">Explore the globe</span>
+      <span class="material-symbols-rounded mini-map-arrow">arrow_forward</span>
+    </div>
+  </div>
+
+  <!-- ── From creators you follow ── -->
+  @if (followingVideos.length > 0) {
+    <div class="section">
+      <div class="section-header">
+        <span class="material-symbols-rounded section-icon">people</span>
+        <span class="section-title">From creators you follow</span>
+      </div>
+
+      <div class="following-list">
+        @for (video of followingVideos; track video.id) {
+          <div class="following-card" [class.expanded]="expandedVideoId === video.id" (click)="toggleVideo(video.id)">
+            @if (expandedVideoId === video.id) {
+              <div class="fc-video" (click)="$event.stopPropagation(); togglePlayback($event)">
+                <video [src]="video.cloudinaryUrl" autoplay loop playsinline [muted]="false"></video>
+              </div>
+              <div class="fc-expanded-info">
+                <div class="fc-user">
+                  @if (video.userAvatar) {
+                    <img class="fc-avatar" [src]="video.userAvatar" alt="">
+                  } @else {
+                    <div class="fc-avatar-placeholder">
+                      <span class="material-symbols-rounded">person</span>
+                    </div>
+                  }
+                  <span class="fc-username" (click)="$event.stopPropagation(); openProfile(video.userId)">{{ video.userName }}</span>
+                </div>
+                <div class="fc-detail-row">
+                  <div class="fc-location">
+                    <span class="material-symbols-rounded">location_on</span>
+                    <span>{{ video.city ? video.city + ', ' : '' }}{{ video.country }}</span>
+                  </div>
+                  <span class="fc-time">{{ getTimeAgo(video.createdAt) }}</span>
+                </div>
+              </div>
+            } @else {
+              <div class="fc-thumb">
+                <img [src]="getThumbUrl(video.cloudinaryUrl)" alt="" loading="lazy">
+              </div>
+              <div class="fc-body">
+                <div class="fc-user">
+                  @if (video.userAvatar) {
+                    <img class="fc-avatar" [src]="video.userAvatar" alt="">
+                  } @else {
+                    <div class="fc-avatar-placeholder">
+                      <span class="material-symbols-rounded">person</span>
+                    </div>
+                  }
+                  <span class="fc-username" (click)="$event.stopPropagation(); openProfile(video.userId)">{{ video.userName }}</span>
+                </div>
+                <div class="fc-location">
+                  <span class="material-symbols-rounded">location_on</span>
+                  <span>{{ video.city ? video.city + ', ' : '' }}{{ video.country }}</span>
+                </div>
+                <span class="fc-time">{{ getTimeAgo(video.createdAt) }}</span>
+              </div>
+            }
+          </div>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- ── Trending destinations ── -->
+  @if (trendingDestinations.length > 0) {
+    <div class="section">
+      <div class="section-header">
+        <span class="material-symbols-rounded section-icon trending-icon">local_fire_department</span>
+        <span class="section-title">Trending this week</span>
+      </div>
+
+      <div class="trending-list">
+        @for (dest of trendingDestinations; track dest.country; let i = $index) {
+          <div class="trending-card" (click)="goToDestination(dest.country)">
+            <span class="tc-rank">{{ i + 1 }}</span>
+            <div class="tc-thumb">
+              @if (dest.thumbnail) {
+                <img [src]="getThumbUrl(dest.thumbnail)" alt="" loading="lazy">
+              } @else {
+                <div class="tc-placeholder">
+                  <span class="material-symbols-rounded">travel_explore</span>
+                </div>
+              }
+            </div>
+            <div class="tc-body">
+              <span class="tc-country">{{ dest.country }}</span>
+              <span class="tc-meta">{{ dest.recentCount }} new · {{ formatCount(dest.videoCount) }} total</span>
+            </div>
+            <span class="material-symbols-rounded tc-arrow">chevron_right</span>
+          </div>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- ── All destinations ── -->
+  <div class="section">
+    <div class="section-header">
+      <span class="material-symbols-rounded section-icon">explore</span>
+      <span class="section-title">All destinations</span>
+      <span class="dest-badge">{{ filteredDestinations.length }}</span>
+    </div>
+
+    <div class="dest-grid">
+      @for (dest of filteredDestinations; track dest.country) {
+        <div class="dest-card" (click)="goToDestination(dest.country)">
+          @if (dest.thumbnail) {
+            <img class="dc-img" [src]="getThumbUrl(dest.thumbnail)" [alt]="dest.country" loading="lazy">
+          } @else {
+            <div class="dc-placeholder">
+              <span class="material-symbols-rounded">travel_explore</span>
+            </div>
+          }
+          <div class="dc-gradient"></div>
+          <div class="dc-info">
+            <span class="dc-country">{{ dest.country }}</span>
+            <span class="dc-meta">{{ formatCount(dest.videoCount) }} videos · {{ dest.cities.length }} cities</span>
+          </div>
+        </div>
+      }
+    </div>
+    @if (filteredDestinations.length === 0) {
+      <div class="empty">
+        <span class="material-symbols-rounded">travel_explore</span>
+        <p>No destinations found</p>
+      </div>
+    }
+  </div>
+</div>

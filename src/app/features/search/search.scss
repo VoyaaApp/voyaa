@@ -1,0 +1,153 @@
+.search-page {
+  display: flex;
+  flex-direction: column;
+  background: #0a0a0a;
+  min-height: calc(100vh - 56px);
+  padding: 16px;
+}
+
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin-bottom: 20px;
+
+  .search-icon {
+    color: #555;
+    font-size: 22px;
+  }
+
+  input {
+    flex: 1;
+    background: none;
+    border: none;
+    color: #fff;
+    font-size: 16px;
+    font-family: 'Inter', sans-serif;
+    outline: none;
+
+    &::placeholder {
+      color: #555;
+    }
+  }
+
+  .clear-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+
+    .material-symbols-rounded {
+      color: #555;
+      font-size: 20px;
+    }
+  }
+}
+
+.search-results {
+  display: flex;
+  flex-direction: column;
+}
+
+.result-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 4px;
+  border-bottom: 1px solid #1a1a1a;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background 0.2s;
+
+  &:hover {
+    background: #1a1a1a;
+  }
+
+  .result-avatar {
+    flex-shrink: 0;
+    width: 48px;
+    height: 48px;
+
+    img {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+
+    .material-symbols-rounded {
+      font-size: 48px;
+      color: #444;
+    }
+  }
+
+  .result-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+
+    .result-username {
+      color: #fff;
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    .result-bio {
+      color: #888;
+      font-size: 13px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+}
+
+.skeleton-item {
+  .skeleton-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: linear-gradient(110deg, #1a1a1a 25%, #2a2a2a 37%, #1a1a1a 63%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+
+  .skeleton-text {
+    width: 140px;
+    height: 16px;
+    border-radius: 4px;
+    background: linear-gradient(110deg, #1a1a1a 25%, #2a2a2a 37%, #1a1a1a 63%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 64px 0;
+
+  .material-symbols-rounded {
+    font-size: 48px;
+    color: #333;
+  }
+
+  p {
+    color: #555;
+    font-size: 14px;
+  }
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}

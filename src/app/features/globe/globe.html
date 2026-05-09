@@ -1,0 +1,53 @@
+<div class="globe">
+  <div class="map-container" #mapContainer></div>
+
+  <!-- Back button -->
+  <button class="back-btn" (click)="goBack()">
+    <span class="material-symbols-rounded">arrow_back</span>
+  </button>
+
+  <!-- Search -->
+  <div class="search-bar">
+    <span class="material-symbols-rounded search-icon">search</span>
+    <input type="text" [(ngModel)]="searchQuery" (input)="onSearch()" placeholder="Search countries or cities...">
+    @if (searchQuery) {
+      <button class="search-clear" (click)="searchQuery = ''; onSearch()">
+        <span class="material-symbols-rounded">close</span>
+      </button>
+    }
+  </div>
+
+  <!-- Region chips -->
+  <div class="chip-bar">
+    @for (region of regions; track region) {
+      <button class="chip" [class.active]="activeRegion === region" (click)="filterByRegion(region)">
+        {{ region }}
+      </button>
+    }
+  </div>
+
+  <!-- Marker preview -->
+  @if (selectedDestination) {
+    <div class="marker-preview" (click)="exploreDestination()">
+      <div class="mp-thumb">
+        @if (selectedDestination.thumbnail) {
+          <img [src]="getThumbUrl(selectedDestination.thumbnail)" alt="" loading="lazy">
+        } @else {
+          <div class="mp-placeholder">
+            <span class="material-symbols-rounded">travel_explore</span>
+          </div>
+        }
+      </div>
+      <div class="mp-body">
+        <span class="mp-country">{{ selectedDestination.country }}</span>
+        <span class="mp-meta">{{ formatCount(selectedDestination.videoCount) }} videos · {{ selectedDestination.cities.slice(0, 2).map(c => c.name).join(', ') }}</span>
+      </div>
+      <div class="mp-go">
+        <span class="material-symbols-rounded">arrow_forward_ios</span>
+      </div>
+      <button class="mp-close" (click)="$event.stopPropagation(); closePreview()">
+        <span class="material-symbols-rounded">close</span>
+      </button>
+    </div>
+  }
+</div>

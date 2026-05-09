@@ -1,0 +1,73 @@
+<div class="upload-page">
+  <h1>Post a Video</h1>
+
+  <div class="file-picker" (click)="fileInput.click()">
+    @if (videoPreviewUrl) {
+      <video [src]="videoPreviewUrl" muted playsinline class="preview"></video>
+    } @else {
+      <span class="material-symbols-rounded">cloud_upload</span>
+      <p>Tap to select a video</p>
+    }
+    <input #fileInput type="file" accept="video/*" (change)="onFileSelected($event)" hidden>
+  </div>
+
+  <form (ngSubmit)="upload()">
+    <input type="text" [(ngModel)]="title" name="title" placeholder="Title" required>
+
+    <div class="location-field">
+      @if (locationDisplay) {
+        <div class="location-selected">
+          <span class="material-symbols-rounded loc-icon">location_on</span>
+          <span class="loc-text">{{ locationDisplay }}</span>
+          <button type="button" class="loc-clear" (click)="clearLocation()">
+            <span class="material-symbols-rounded">close</span>
+          </button>
+        </div>
+      } @else {
+        <div class="location-input-wrap">
+          <span class="material-symbols-rounded loc-search-icon">location_on</span>
+          <input type="text" [(ngModel)]="locationQuery" name="location"
+                 placeholder="Where was this filmed?"
+                 (input)="onLocationInput()"
+                 (focus)="showLocationDropdown = locationSuggestions.length > 0"
+                 autocomplete="off">
+          @if (isSearchingLocation) {
+            <div class="loc-spinner"></div>
+          }
+        </div>
+        @if (showLocationDropdown && locationSuggestions.length > 0) {
+          <div class="dropdown">
+            @for (s of locationSuggestions; track s.display) {
+              <div class="dropdown-item" (click)="selectLocation(s)">
+                <span class="material-symbols-rounded dropdown-icon">location_on</span>
+                {{ s.display }}
+              </div>
+            }
+          </div>
+        }
+      }
+    </div>
+
+    @if (errorMessage) {
+      <p class="error">{{ errorMessage }}</p>
+    }
+
+    <button type="submit" [disabled]="isUploading">
+      @if (isUploading) {
+        Uploading...
+      } @else {
+        Post
+      }
+    </button>
+  </form>
+</div>
+
+@if (isUploading) {
+  <div class="upload-overlay">
+    <div class="upload-modal">
+      <div class="upload-spinner"></div>
+      <span class="upload-status">{{ uploadStatus }}</span>
+      <span class="upload-hint">Please don't leave this page</span>
+    </div>
+  </div>
+}

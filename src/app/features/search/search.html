@@ -1,0 +1,63 @@
+<div class="search-page">
+  <div class="search-bar">
+    <span class="material-symbols-rounded search-icon">search</span>
+    <input
+      type="text"
+      [(ngModel)]="searchQuery"
+      placeholder="Search people..."
+      (input)="onInputChange()"
+      autofocus
+    >
+    @if (searchQuery) {
+      <button class="clear-btn" (click)="searchQuery = ''; results = []; hasSearched = false; cachedUsers = null">
+        <span class="material-symbols-rounded">close</span>
+      </button>
+    }
+  </div>
+
+  @if (searching) {
+    <div class="search-results">
+      @for (i of [1,2,3]; track i) {
+        <div class="result-item skeleton-item">
+          <div class="skeleton-avatar"></div>
+          <div class="skeleton-text"></div>
+        </div>
+      }
+    </div>
+  }
+
+  @if (!searching && hasSearched) {
+    <div class="search-results">
+      @for (user of results; track user.uid) {
+        <div class="result-item" (click)="goToProfile(user.uid)">
+          <div class="result-avatar">
+            @if (user.photoURL) {
+              <img [src]="user.photoURL" alt="avatar">
+            } @else {
+              <span class="material-symbols-rounded">account_circle</span>
+            }
+          </div>
+          <div class="result-info">
+            <span class="result-username">{{ user.username }}</span>
+            @if (user.bio) {
+              <span class="result-bio">{{ user.bio }}</span>
+            }
+          </div>
+        </div>
+      }
+      @if (results.length === 0) {
+        <div class="empty-state">
+          <span class="material-symbols-rounded">person_off</span>
+          <p>No users found</p>
+        </div>
+      }
+    </div>
+  }
+
+  @if (!hasSearched && !searching) {
+    <div class="empty-state">
+      <span class="material-symbols-rounded">group</span>
+      <p>Search for people to follow</p>
+    </div>
+  }
+</div>

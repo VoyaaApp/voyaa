@@ -1,0 +1,286 @@
+.globe {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: #080808;
+}
+
+.map-container {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+// ── Leaflet overrides ───────────────────────
+
+:host ::ng-deep {
+  .map-marker { background: none; border: none; }
+
+  .marker-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .marker-dot {
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    background: rgba(255, 107, 107, 0.85);
+    box-shadow:
+      0 0 0 3px rgba(255, 107, 107, 0.25),
+      0 0 20px rgba(255, 107, 107, 0.3),
+      0 2px 8px rgba(0, 0, 0, 0.4);
+    animation: pulse 2.5s ease-in-out infinite;
+  }
+
+  .marker-count {
+    font-size: 9px;
+    font-weight: 800;
+    color: #fff;
+    font-family: 'Inter', sans-serif;
+    letter-spacing: 0.3px;
+  }
+
+  .marker-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.9);
+    font-family: 'Inter', sans-serif;
+    white-space: nowrap;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9), 0 0 8px rgba(0, 0, 0, 0.7);
+    letter-spacing: 0.2px;
+    pointer-events: none;
+  }
+
+  .leaflet-container { background: #080808; }
+}
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.25), 0 0 20px rgba(255, 107, 107, 0.3), 0 2px 8px rgba(0, 0, 0, 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(255, 107, 107, 0.12), 0 0 30px rgba(255, 107, 107, 0.2), 0 2px 8px rgba(0, 0, 0, 0.4); }
+}
+
+// ── Back button ─────────────────────────────
+
+.back-btn {
+  position: absolute;
+  top: 14px;
+  left: 16px;
+  z-index: 600;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(18, 18, 18, 0.8);
+  backdrop-filter: blur(16px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s;
+
+  &:active { background: rgba(255, 255, 255, 0.12); }
+
+  .material-symbols-rounded {
+    font-size: 22px;
+    color: #fff;
+  }
+}
+
+// ── Search bar ──────────────────────────────
+
+.search-bar {
+  position: absolute;
+  top: 14px;
+  left: 68px;
+  right: 16px;
+  z-index: 600;
+  display: flex;
+  align-items: center;
+
+  .search-icon {
+    position: absolute;
+    left: 16px;
+    font-size: 20px;
+    color: rgba(255, 255, 255, 0.35);
+    pointer-events: none;
+  }
+
+  input {
+    width: 100%;
+    padding: 11px 44px 11px 46px;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(18, 18, 18, 0.75);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    color: #fff;
+    font-size: 15px;
+    font-family: 'Inter', sans-serif;
+    font-weight: 400;
+    box-sizing: border-box;
+    transition: all 0.25s;
+
+    &::placeholder {
+      color: rgba(255, 255, 255, 0.25);
+      font-weight: 400;
+    }
+
+    &:focus {
+      outline: none;
+      border-color: rgba(255, 107, 107, 0.4);
+      background: rgba(18, 18, 18, 0.9);
+      box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.08);
+    }
+  }
+
+  .search-clear {
+    position: absolute;
+    right: 12px;
+    background: rgba(255, 255, 255, 0.08);
+    border: none;
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+
+    .material-symbols-rounded {
+      font-size: 16px;
+      color: rgba(255, 255, 255, 0.5);
+    }
+  }
+}
+
+// ── Chip bar ────────────────────────────────
+
+.chip-bar {
+  position: absolute;
+  top: 66px;
+  left: 0;
+  right: 0;
+  z-index: 600;
+  display: flex;
+  gap: 8px;
+  padding: 0 16px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+}
+
+.chip {
+  flex-shrink: 0;
+  padding: 7px 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(18, 18, 18, 0.7);
+  backdrop-filter: blur(12px);
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+
+  &:active { transform: scale(0.95); }
+
+  &.active {
+    border-color: transparent;
+    background: linear-gradient(135deg, #FF6B6B, #FF8E53);
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(255, 107, 107, 0.3);
+  }
+}
+
+// ── Marker preview ──────────────────────────
+
+.marker-preview {
+  position: absolute;
+  bottom: 72px;
+  left: 16px;
+  right: 16px;
+  z-index: 550;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  border-radius: 18px;
+  background: rgba(18, 18, 18, 0.85);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  animation: slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+  &:active { transform: scale(0.98); }
+
+  .mp-thumb {
+    flex-shrink: 0;
+    width: 56px;
+    height: 72px;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #1a1a1a;
+
+    img { width: 100%; height: 100%; object-fit: cover; }
+
+    .mp-placeholder {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      .material-symbols-rounded { font-size: 24px; color: #333; }
+    }
+  }
+
+  .mp-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    .mp-country { color: #fff; font-weight: 700; font-size: 16px; }
+    .mp-meta { color: rgba(255,255,255,0.4); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  }
+
+  .mp-go {
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #FF6B6B, #FF8E53);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 20px;
+    .material-symbols-rounded { font-size: 16px; color: #fff; }
+  }
+
+  .mp-close {
+    position: absolute;
+    top: -8px;
+    right: -4px;
+    background: rgba(30, 30, 30, 0.95);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 50%;
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    .material-symbols-rounded { font-size: 14px; color: rgba(255,255,255,0.4); }
+  }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}

@@ -1,0 +1,35 @@
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 56px;
+  background: #1a1a1a;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  z-index: 100;
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    color: rgba(255, 255, 255, 0.5);
+    transition: color 0.2s;
+
+    .material-symbols-rounded {
+      font-size: 26px;
+    }
+
+    .nav-label {
+      display: none;
+    }
+
+    &.active {
+      color: #fff;
+    }
+  }
+
+
+}

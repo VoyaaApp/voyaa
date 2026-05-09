@@ -1,0 +1,154 @@
+<app-top-bar></app-top-bar>
+
+<app-confirm-dialog
+  [visible]="showConfirm"
+  [message]="confirmMessage"
+  confirmText="Delete"
+  [destructive]="true"
+  (confirmed)="onConfirmed()"
+  (cancelled)="onCancelled()"
+/>
+
+@if (loading) {
+  <div class="feed-container">
+    <div class="video-card skeleton">
+      <div class="skeleton-video"></div>
+      <div class="skeleton-overlay">
+        <div class="skeleton-line short"></div>
+        <div class="skeleton-line"></div>
+        <div class="skeleton-line short"></div>
+      </div>
+    </div>
+  </div>
+}
+
+@if (!loading) {
+@if (loadError) {
+  <div class="feed-state">
+    <span class="material-symbols-rounded">wifi_off</span>
+    <p>Couldn't load videos</p>
+    <button class="retry-btn" (click)="loadVideos()">Try again</button>
+  </div>
+} @else if (videos.length === 0) {
+  <div class="feed-state">
+    <span class="material-symbols-rounded">video_library</span>
+    <p>No videos yet. Be the first to upload!</p>
+  </div>
+} @else {
+@if (pullDistance > 0) {
+  <div class="pull-indicator" [style.height.px]="pullDistance">
+    <span class="material-symbols-rounded" [class.spinning]="isRefreshing">refresh</span>
+  </div>
+}
+<div class="feed-container" #feedContainer (touchstart)="onTouchStart($event)" (touchmove)="onTouchMove($event)" (touchend)="onTouchEnd()">
+    @for (video of videos; track video.id) {
+        <div class="video-card">
+            <video #videoPlayer [src]="video.cloudinaryUrl" loop [muted]="isMuted" playsinline
+              (pointerdown)="onPointerDown($event, video)"
+              (pointerup)="onPointerUp($event, video)"></video>
+            <div class="overlay" (click)="$event.stopPropagation()">
+                <div class="overlay-top">
+                  <a class="creator-avatar" [routerLink]="['/profile', video.userId]">
+                    @if (video.photoURL) {
+                      <img [src]="video.photoURL" alt="avatar">
+                    } @else {
+                      <span class="material-symbols-rounded">account_circle</span>
+                    }
+                  </a>
+                  <a class="creator" [routerLink]="['/profile', video.userId]">{{ video.username }}</a>
+                  <span class="timestamp">{{ timeAgo(video.createdAt) }}</span>
+                  @if (video.userId !== authService.currentUser()?.uid) {
+                    <button class="follow-btn" [class.following]="video.following" [class.animating]="video.followAnimating" (click)="toggleFollow(video)">
+                      {{ video.following ? 'Following' : 'Follow' }}
+                    </button>
+                  }
+                </div>
+                <span class="title">{{ video.title }}</span>
+                <a class="location-pill" [routerLink]="['/destination', video.location.country]" (click)="$event.stopPropagation()">
+                  <span class="material-symbols-rounded location-icon">location_on</span>
+                  <span>{{ video.location.city }}, {{ video.location.country }}</span>
+                </a>
+            </div>
+            <div class="actions" (click)="$event.stopPropagation()">
+                <button class="action-btn" [class.liked]="video.liked" [class.animating]="video.likeAnimating" (click)="toggleLike(video)">
+                    <span class="material-symbols-rounded">{{ video.liked ? 'favorite' : 'favorite_border' }}</span>
+                    <span class="count">{{ formatCount(video.likeCount) }}</span>
+                </button>
+                <button class="action-btn" (click)="openComments(video)">
+                    <span class="material-symbols-rounded">chat_bubble</span>
+                    <span class="count">{{ formatCount(video.commentCount) }}</span>
+                </button>
+                <button class="action-btn">
+                    <span class="material-symbols-rounded">visibility</span>
+                    <span class="count">{{ formatCount(video.viewCount || 0) }}</span>
+                </button>
+                <button class="action-btn" [class.bookmarked]="video.bookmarked" (click)="toggleBookmark(video)">
+                    <span class="material-symbols-rounded">{{ video.bookmarked ? 'bookmark' : 'bookmark_border' }}</span>
+                </button>
+            </div>
+            @if (video.showHeart) {
+              <div class="heart-animation">
+                <span class="material-symbols-rounded">favorite</span>
+              </div>
+            }
+            @if (showMuteIndicator) {
+              <div class="mute-indicator" [class.fade-out]="muteIndicatorFading">
+                <span class="material-symbols-rounded">{{ isMuted ? 'volume_off' : 'volume_up' }}</span>
+              </div>
+            }
+            @if (showPauseIndicator) {
+              <div class="pause-indicator" [class.fade-out]="pauseIndicatorFading">
+                <span class="material-symbols-rounded">{{ isPaused ? 'pause' : 'play_arrow' }}</span>
+              </div>
+            }
+        </div>
+    }
+</div>
+}
+}
+
+@if (showComments) {
+  <div class="comments-backdrop" (click)="closeComments()"></div>
+  <div class="comments-panel">
+    <div class="comments-header">
+      <h3>Comments</h3>
+      <button class="close-btn" (click)="closeComments()">
+        <span class="material-symbols-rounded">close</span>
+      </button>
+    </div>
+    <div class="comments-list">
+      @for (comment of comments; track comment.id) {
+        <div class="comment">
+          <div class="comment-avatar">
+            @if (comment.photoURL) {
+              <img [src]="comment.photoURL" alt="avatar">
+            } @else {
+              <span class="material-symbols-rounded">account_circle</span>
+            }
+          </div>
+          <div class="comment-body">
+            <div class="comment-top">
+              <a class="comment-user" [routerLink]="['/profile', comment.userId]">{{ comment.username }}</a>
+              <span class="comment-time">{{ timeAgo(comment.createdAt) }}</span>
+            </div>
+            <span class="comment-text">{{ comment.text }}</span>
+          </div>
+          @if (comment.userId === authService.currentUser()?.uid) {
+            <button class="comment-delete" (click)="deleteComment(comment)">
+              <span class="material-symbols-rounded">close</span>
+            </button>
+          }
+        </div>
+      }
+      @if (comments.length === 0) {
+        <p class="no-comments">No comments yet. Be the first!</p>
+      }
+    </div>
+    <div class="comment-input">
+      <input type="text" [(ngModel)]="newComment" placeholder="Add a comment..." (keyup.enter)="postComment()">
+      <button (click)="postComment()" [disabled]="!newComment.trim()">
+        <span class="material-symbols-rounded">send</span>
+      </button>
+    </div>
+  </div>
+}

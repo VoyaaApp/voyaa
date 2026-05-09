@@ -1,0 +1,47 @@
+<div class="activity-page">
+  <div class="activity-header">
+    <h2>Activity</h2>
+  </div>
+
+  @if (loading) {
+    <div class="activity-list">
+      @for (i of [1,2,3,4,5]; track i) {
+        <div class="activity-item skeleton-item">
+          <div class="skeleton-avatar"></div>
+          <div class="skeleton-text"></div>
+        </div>
+      }
+    </div>
+  }
+
+  @if (!loading && notifications.length === 0) {
+    <div class="empty-state">
+      <span class="material-symbols-rounded">notifications_none</span>
+      <p>No activity yet</p>
+    </div>
+  }
+
+  @if (!loading && notifications.length > 0) {
+    <div class="activity-list">
+      @for (notif of notifications; track notif.id) {
+        <div class="activity-item" [class.unread]="!notif.read">
+          <a class="notif-avatar" [routerLink]="['/profile', notif.fromUserId]">
+            @if (notif.fromPhotoURL) {
+              <img [src]="notif.fromPhotoURL" alt="">
+            } @else {
+              <span class="material-symbols-rounded">account_circle</span>
+            }
+          </a>
+          <div class="notif-content">
+            <p>
+              <a class="notif-user" [routerLink]="['/profile', notif.fromUserId]">{{ notif.fromUsername }}</a>
+              <span class="notif-message">{{ getMessage(notif) }}</span>
+            </p>
+            <span class="notif-time">{{ timeAgo(notif.createdAt) }}</span>
+          </div>
+          <span class="notif-icon material-symbols-rounded" [class]="'type-' + notif.type">{{ getIcon(notif.type) }}</span>
+        </div>
+      }
+    </div>
+  }
+</div>
