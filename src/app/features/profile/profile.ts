@@ -48,6 +48,13 @@ export class Profile implements OnInit, OnDestroy {
   editBio = '';
   editError = '';
   readonly usernameMin = 3;
+
+  getThumbUrl(url: string): string {
+    if (!url) return '';
+    return url
+      .replace('/video/upload/', '/video/upload/so_0,w_400,h_500,c_fill,q_auto,f_auto/')
+      .replace(/\.[^.]+$/, '.jpg');
+  }
   readonly usernameMax = 20;
   readonly bioMax = 150;
   uploadingImage = false;

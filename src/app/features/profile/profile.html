@@ -45,7 +45,6 @@
 }
 
 <div class="profile-header">
-  <div class="header-spacer"></div>
   <img src="voyaa.png" alt="Voyaa" class="header-logo">
   <a class="header-bell" routerLink="/activity">
     <span class="material-symbols-rounded">notifications</span>
@@ -188,7 +187,7 @@
       <div class="video-grid">
         @for (video of videos; track video.id; let i = $index) {
           <div class="grid-item" (click)="openVideoViewer(i)">
-            <video [src]="video.cloudinaryUrl" muted preload="metadata"></video>
+            <img [src]="getThumbUrl(video.cloudinaryUrl)" alt="" loading="lazy">
             <div class="grid-overlay">
               <span class="material-symbols-rounded">play_arrow</span>
             </div>
@@ -213,7 +212,7 @@
         <div class="saved-grid">
           @for (group of savedGroups; track group.country) {
             <div class="saved-card" (click)="openSavedGroup(group)">
-              <video [src]="group.thumbnail" muted preload="metadata"></video>
+              <img [src]="getThumbUrl(group.thumbnail)" alt="" loading="lazy">
               <div class="saved-card-overlay">
                 <span class="saved-country">{{ group.country }}</span>
                 <span class="saved-count">{{ group.videos.length }} {{ group.videos.length === 1 ? 'video' : 'videos' }}</span>
@@ -237,7 +236,7 @@
         <div class="video-grid">
           @for (video of savedGroupVideos; track video.id; let i = $index) {
             <div class="grid-item">
-              <video [src]="video.cloudinaryUrl" muted preload="metadata"></video>
+              <img [src]="getThumbUrl(video.cloudinaryUrl)" alt="" loading="lazy">
             </div>
           }
         </div>
