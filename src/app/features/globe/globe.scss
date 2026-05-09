@@ -1,7 +1,10 @@
 .globe {
   position: fixed;
-  inset: 0;
-  z-index: 200;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 56px;
+  z-index: 50;
   background: #080808;
 }
 
@@ -156,6 +159,36 @@
       color: rgba(255, 255, 255, 0.5);
     }
   }
+
+  .search-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 4px;
+    background: rgba(18, 18, 18, 0.95);
+    backdrop-filter: blur(20px);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    overflow: hidden;
+    z-index: 700;
+
+    .search-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 16px;
+      cursor: pointer;
+      color: #fff;
+      font-size: 14px;
+      transition: background 0.2s;
+
+      &:active { background: rgba(255, 255, 255, 0.08); }
+
+      .material-symbols-rounded { font-size: 18px; color: #FF8E53; }
+      .search-item-meta { margin-left: auto; color: rgba(255,255,255,0.3); font-size: 12px; }
+    }
+  }
 }
 
 // ── Chip bar ────────────────────────────────
@@ -165,7 +198,7 @@
   top: 66px;
   left: 0;
   right: 0;
-  z-index: 600;
+  z-index: 500;
   display: flex;
   gap: 8px;
   padding: 0 16px;
@@ -203,7 +236,7 @@
 
 .marker-preview {
   position: absolute;
-  bottom: 72px;
+  bottom: 16px;
   left: 16px;
   right: 16px;
   z-index: 550;

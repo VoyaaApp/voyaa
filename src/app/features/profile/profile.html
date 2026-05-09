@@ -124,6 +124,9 @@
       @if (isOwnProfile) {
         <div class="profile-actions">
           <button class="edit-btn" (click)="openEdit()">Edit Profile</button>
+          <a class="upload-btn" routerLink="/upload">
+            <span class="material-symbols-rounded">add_circle</span>
+          </a>
           <div class="menu-wrapper">
             <button class="menu-btn" (click)="toggleMenu()">
               <span class="material-symbols-rounded">more_horiz</span>
@@ -159,9 +162,14 @@
         </div>
         <div class="edit-form">
           <label>Username</label>
-          <input type="text" [(ngModel)]="editUsername" placeholder="Username">
+          <input type="text" [(ngModel)]="editUsername" placeholder="Username" [maxlength]="usernameMax">
+          <span class="char-count">{{ editUsername.length }}/{{ usernameMax }}</span>
           <label>Bio</label>
-          <textarea [(ngModel)]="editBio" placeholder="Tell us about yourself..." rows="3"></textarea>
+          <textarea [(ngModel)]="editBio" placeholder="Tell us about yourself..." rows="3" [maxlength]="bioMax"></textarea>
+          <span class="char-count">{{ editBio.length }}/{{ bioMax }}</span>
+          @if (editError) {
+            <span class="edit-error">{{ editError }}</span>
+          }
           <button class="save-btn" (click)="saveProfile()">Save</button>
         </div>
       </div>

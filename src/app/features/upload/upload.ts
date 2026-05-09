@@ -1,6 +1,7 @@
 import { Component, OnDestroy, inject, ChangeDetectorRef } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
+import { Location } from '@angular/common';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../../core/services/auth.service';
 import { db } from '../../core/services/firebase.service';
@@ -20,8 +21,13 @@ interface LocationSuggestion {
 })
 export class Upload implements OnDestroy {
   private router = inject(Router);
+  private location = inject(Location);
   private authService = inject(AuthService);
   private cdr = inject(ChangeDetectorRef);
+
+  goBack() {
+    this.location.back();
+  }
 
   selectedFile: File | null = null;
   videoPreviewUrl: string | null = null;

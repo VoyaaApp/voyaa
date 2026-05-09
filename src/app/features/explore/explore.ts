@@ -43,6 +43,7 @@ export class Explore implements OnInit, AfterViewInit, OnDestroy {
   filteredDestinations: Destination[] = [];
   trendingDestinations: Destination[] = [];
   followingVideos: FollowingVideo[] = [];
+  filteredFollowingVideos: FollowingVideo[] = [];
   searchQuery = '';
   loading = true;
   formatCount = formatCount;
@@ -197,6 +198,12 @@ export class Explore implements OnInit, AfterViewInit, OnDestroy {
     }
 
     this.filteredDestinations = filtered;
+
+    if (this.activeRegion !== 'All') {
+      this.filteredFollowingVideos = this.followingVideos.filter(v => REGION_MAP[v.country] === this.activeRegion);
+    } else {
+      this.filteredFollowingVideos = this.followingVideos;
+    }
   }
 
   goToDestination(country: string) {
@@ -255,6 +262,7 @@ export class Explore implements OnInit, AfterViewInit, OnDestroy {
       userAvatar: userMap.get(v.userId)?.avatarUrl || '',
       title: v.title || '',
     }));
+    this.filteredFollowingVideos = this.followingVideos;
 
     this.cdr.detectChanges();
   }

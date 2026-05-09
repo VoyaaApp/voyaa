@@ -85,6 +85,9 @@
                 <button class="action-btn" [class.bookmarked]="video.bookmarked" (click)="toggleBookmark(video)">
                     <span class="material-symbols-rounded">{{ video.bookmarked ? 'bookmark' : 'bookmark_border' }}</span>
                 </button>
+                <button class="action-btn" (click)="toggleMute()">
+                    <span class="material-symbols-rounded">{{ isMuted ? 'volume_off' : 'volume_up' }}</span>
+                </button>
             </div>
             @if (video.showHeart) {
               <div class="heart-animation">

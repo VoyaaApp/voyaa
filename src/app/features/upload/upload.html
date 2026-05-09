@@ -1,5 +1,10 @@
 <div class="upload-page">
-  <h1>Post a Video</h1>
+  <div class="upload-header">
+    <button class="back-btn" (click)="goBack()">
+      <span class="material-symbols-rounded">arrow_back</span>
+    </button>
+    <h1>Post a Video</h1>
+  </div>
 
   <div class="file-picker" (click)="fileInput.click()">
     @if (videoPreviewUrl) {

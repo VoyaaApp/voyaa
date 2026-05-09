@@ -86,6 +86,33 @@
   position: relative;
   overflow: hidden;
 
+  .password-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+
+    input {
+      width: 100%;
+      padding-right: 44px;
+    }
+
+    .toggle-pw {
+      position: absolute;
+      right: 10px;
+      background: none;
+      border: none;
+      padding: 0;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+
+      .material-symbols-rounded {
+        font-size: 20px;
+        color: #666;
+      }
+    }
+  }
+
   &::before,
   &::after {
     content: '';

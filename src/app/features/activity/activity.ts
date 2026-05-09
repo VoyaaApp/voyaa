@@ -1,4 +1,5 @@
 import { Component, inject, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Location } from '@angular/common';
 import { collection, getDocs, orderBy, query, doc, writeBatch } from 'firebase/firestore';
 import { db } from '../../core/services/firebase.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -18,6 +19,11 @@ export class Activity implements OnInit {
 
   authService = inject(AuthService);
   private cdr = inject(ChangeDetectorRef);
+  private location = inject(Location);
+
+  goBack() {
+    this.location.back();
+  }
 
   async ngOnInit() {
     const uid = this.authService.currentUser()?.uid;

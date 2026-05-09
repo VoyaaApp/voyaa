@@ -46,6 +46,10 @@ export class Profile implements OnInit, OnDestroy {
 
   editUsername = '';
   editBio = '';
+  editError = '';
+  readonly usernameMin = 3;
+  readonly usernameMax = 20;
+  readonly bioMax = 150;
   uploadingImage = false;
   loading = true;
   timeAgo = timeAgo;
@@ -153,6 +157,7 @@ export class Profile implements OnInit, OnDestroy {
   openEdit() {
     this.editUsername = this.profileUser.username || '';
     this.editBio = this.profileUser.bio || '';
+    this.editError = '';
     this.isEditing = true;
   }
 
@@ -188,16 +193,45 @@ export class Profile implements OnInit, OnDestroy {
   }
 
   async saveProfile() {
-    if (!this.editUsername.trim()) return;
+    const trimmedName = this.editUsername.trim();
+    const trimmedBio = this.editBio.trim();
+    this.editError = '';
+
+    if (trimmedName.length < this.usernameMin) {
+      this.editError = `Username must be at least ${this.usernameMin} characters.`;
+      return;
+    }
+    if (trimmedName.length > this.usernameMax) {
+      this.editError = `Username must be at most ${this.usernameMax} characters.`;
+      return;
+    }
+    if (!/^[a-zA-Z0-9_]+$/.test(trimmedName)) {
+      this.editError = 'Only letters, numbers and underscores allowed.';
+      return;
+    }
+    if (trimmedBio.length > this.bioMax) {
+      this.editError = `Bio must be at most ${this.bioMax} characters.`;
+      return;
+    }
+
+    // Check username uniqueness if changed
+    if (trimmedName !== this.profileUser.username) {
+      const usernameQuery = query(collection(db, 'users'), where('username', '==', trimmedName));
+      const snap = await getDocs(usernameQuery);
+      if (!snap.empty) {
+        this.editError = 'This username is already taken.';
+        return;
+      }
+    }
 
     const userRef = doc(db, 'users', this.profileUser.uid);
     await updateDoc(userRef, {
-      username: this.editUsername.trim(),
-      bio: this.editBio.trim(),
+      username: trimmedName,
+      bio: trimmedBio,
     });
 
-    this.profileUser.username = this.editUsername.trim();
-    this.profileUser.bio = this.editBio.trim();
+    this.profileUser.username = trimmedName;
+    this.profileUser.bio = trimmedBio;
     this.isEditing = false;
     this.cdr.detectChanges();
   }

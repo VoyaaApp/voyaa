@@ -17,6 +17,7 @@ export class Login {
   password = '';
   errorMessage = '';
   isLoading = false;
+  showPassword = false;
 
   login() {
     if (!this.email || !this.password) {

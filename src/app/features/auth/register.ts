@@ -2,7 +2,7 @@ import { Component, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../../core/services/firebase.service';
 
 @Component({
@@ -24,6 +24,16 @@ export class Register {
   dobMonth = '';
   dobYear = '';
 
+  readonly usernameMin = 3;
+  readonly usernameMax = 20;
+  readonly passwordMin = 8;
+  readonly passwordMax = 64;
+  readonly emailMax = 254;
+  usernameError = '';
+  passwordError = '';
+  emailError = '';
+  showPassword = false;
+
   days = Array.from({ length: 31 }, (_, i) => i + 1);
   months = [
     { value: '01', label: 'January' },
@@ -41,14 +51,57 @@ export class Register {
   ];
   years = Array.from({ length: 100 }, (_, i) => new Date().getFullYear() - i);
 
-  register() {
+  validateUsername(): boolean {
+    const u = this.username.trim();
+    if (u.length < this.usernameMin) {
+      this.usernameError = `Username must be at least ${this.usernameMin} characters.`;
+      return false;
+    }
+    if (u.length > this.usernameMax) {
+      this.usernameError = `Username must be at most ${this.usernameMax} characters.`;
+      return false;
+    }
+    if (!/^[a-zA-Z0-9_]+$/.test(u)) {
+      this.usernameError = 'Only letters, numbers and underscores allowed.';
+      return false;
+    }
+    this.usernameError = '';
+    return true;
+  }
+
+  validatePassword(): boolean {
+    if (this.password.length < this.passwordMin) {
+      this.passwordError = `Password must be at least ${this.passwordMin} characters.`;
+      return false;
+    }
+    if (this.password.length > this.passwordMax) {
+      this.passwordError = `Password must be at most ${this.passwordMax} characters.`;
+      return false;
+    }
+    this.passwordError = '';
+    return true;
+  }
+
+  validateEmail(): boolean {
+    if (this.email.length > this.emailMax) {
+      this.emailError = `Email must be at most ${this.emailMax} characters.`;
+      return false;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.email)) {
+      this.emailError = 'Please enter a valid email address.';
+      return false;
+    }
+    this.emailError = '';
+    return true;
+  }
+
+  async register() {
     if (!this.email || !this.password || !this.username || !this.dobDay || !this.dobMonth || !this.dobYear) {
       this.errorMessage = 'All fields are required.';
       return;
     }
 
-    if (this.password.length < 8) {
-      this.errorMessage = 'Password must be at least 8 characters.';
+    if (!this.validateEmail() || !this.validateUsername() || !this.validatePassword()) {
       return;
     }
 
@@ -67,11 +120,29 @@ export class Register {
     this.errorMessage = '';
     const dateOfBirth = `${this.dobYear}-${this.dobMonth.padStart(2, '0')}-${this.dobDay.padStart(2, '0')}`;
 
+    // Check username uniqueness
+    const usernameQuery = query(collection(db, 'users'), where('username', '==', this.username.trim()));
+    const usernameSnap = await getDocs(usernameQuery);
+    if (!usernameSnap.empty) {
+      this.errorMessage = 'This username is already taken.';
+      this.isLoading = false;
+      return;
+    }
+
+    // Check email uniqueness
+    const emailQuery = query(collection(db, 'users'), where('email', '==', this.email.trim()));
+    const emailSnap = await getDocs(emailQuery);
+    if (!emailSnap.empty) {
+      this.errorMessage = 'An account with this email already exists.';
+      this.isLoading = false;
+      return;
+    }
+
     this.authService.register(this.email, this.password)
     .then((userCredential) => {
       return setDoc(doc(db, 'users', userCredential.user.uid), {
-        username: this.username,
-        email: this.email,
+        username: this.username.trim(),
+        email: this.email.trim(),
         dateOfBirth,
         createdAt: new Date().toISOString(),
       });

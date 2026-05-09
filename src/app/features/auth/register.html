@@ -2,9 +2,35 @@
   <img src="voyaa.png" alt="Voyaa" class="logo">
   <h1>Create Account</h1>
   <form (ngSubmit)="register()">
-    <input type="email" [(ngModel)]="email" name="email" placeholder="Email" required>
-    <input type="password" [(ngModel)]="password" name="password" placeholder="Password" required>
-    <input type="text" [(ngModel)]="username" name="username" placeholder="Username" required autocomplete="off">
+    <div class="field">
+      <input type="email" [(ngModel)]="email" name="email" placeholder="Email" required
+        [maxlength]="emailMax" (blur)="validateEmail()">
+      <span class="char-hint">Max {{ emailMax }} characters</span>
+      @if (emailError) {
+        <span class="field-error">{{ emailError }}</span>
+      }
+    </div>
+    <div class="field">
+      <div class="password-wrapper">
+        <input [type]="showPassword ? 'text' : 'password'" [(ngModel)]="password" name="password" placeholder="Password" required
+          [maxlength]="passwordMax" (blur)="validatePassword()">
+        <button type="button" class="toggle-pw" (click)="showPassword = !showPassword">
+          <span class="material-symbols-rounded">{{ showPassword ? 'visibility_off' : 'visibility' }}</span>
+        </button>
+      </div>
+      <span class="char-hint">{{ passwordMin }}–{{ passwordMax }} characters</span>
+      @if (passwordError) {
+        <span class="field-error">{{ passwordError }}</span>
+      }
+    </div>
+    <div class="field">
+      <input type="text" [(ngModel)]="username" name="username" placeholder="Username" required autocomplete="off"
+        [maxlength]="usernameMax" (blur)="validateUsername()">
+      <span class="char-hint">{{ usernameMin }}–{{ usernameMax }} characters, letters, numbers, underscores</span>
+      @if (usernameError) {
+        <span class="field-error">{{ usernameError }}</span>
+      }
+    </div>
     <label class="dob-label">Date of Birth</label>
     <div class="dob-row">
       <input type="text" [(ngModel)]="dobDay" name="dobDay" placeholder="DD" maxlength="2" required>

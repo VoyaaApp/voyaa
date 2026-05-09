@@ -189,8 +189,30 @@ export class Globe implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
+  searchSuggestions: Destination[] = [];
+  showSuggestions = false;
+
   onSearch() {
+    const q = this.searchQuery.trim().toLowerCase();
+    if (q.length > 0) {
+      this.activeRegion = 'All';
+      this.searchSuggestions = this.destinations.filter(d =>
+        d.country.toLowerCase().includes(q) ||
+        d.cities.some(c => c.name.toLowerCase().includes(q))
+      ).slice(0, 5);
+      this.showSuggestions = this.searchSuggestions.length > 0;
+    } else {
+      this.searchSuggestions = [];
+      this.showSuggestions = false;
+    }
     this.applyFilters();
+  }
+
+  selectSuggestion(dest: Destination) {
+    this.searchQuery = dest.country;
+    this.showSuggestions = false;
+    this.searchSuggestions = [];
+    this.selectDestination(dest);
   }
 
   private applyFilters() {

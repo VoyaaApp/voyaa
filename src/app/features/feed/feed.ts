@@ -428,24 +428,15 @@ export class Feed implements AfterViewInit, OnDestroy {
   }
 
   onPointerDown(event: Event, video: any) {
-    this.isLongPress = false;
-    this.pressTimer = setTimeout(() => {
-      this.isLongPress = true;
-      this.toggleMute();
-    }, 500);
+    // No long-press behavior
   }
 
   onPointerUp(event: Event, video: any) {
-    clearTimeout(this.pressTimer);
-    if (this.isLongPress) return;
-
     if (this.pendingTap) {
-      // Second tap within 300ms — double tap
       clearTimeout(this.tapTimer);
       this.pendingTap = false;
       this.onDoubleTap(video);
     } else {
-      // First tap — wait to see if a second comes
       this.pendingTap = true;
       this.tapTimer = setTimeout(() => {
         this.pendingTap = false;

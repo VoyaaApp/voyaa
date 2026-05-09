@@ -15,6 +15,17 @@
         <span class="material-symbols-rounded">close</span>
       </button>
     }
+    @if (showSuggestions) {
+      <div class="search-dropdown">
+        @for (dest of searchSuggestions; track dest.country) {
+          <div class="search-item" (click)="selectSuggestion(dest)">
+            <span class="material-symbols-rounded">location_on</span>
+            <span>{{ dest.country }}</span>
+            <span class="search-item-meta">{{ dest.videoCount }} videos</span>
+          </div>
+        }
+      </div>
+    }
   </div>
 
   <!-- Region chips -->

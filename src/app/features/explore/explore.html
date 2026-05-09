@@ -44,7 +44,7 @@
   </div>
 
   <!-- ── From creators you follow ── -->
-  @if (followingVideos.length > 0) {
+  @if (filteredFollowingVideos.length > 0) {
     <div class="section">
       <div class="section-header">
         <span class="material-symbols-rounded section-icon">people</span>
@@ -52,7 +52,7 @@
       </div>
 
       <div class="following-list">
-        @for (video of followingVideos; track video.id) {
+        @for (video of filteredFollowingVideos; track video.id) {
           <div class="following-card" [class.expanded]="expandedVideoId === video.id" (click)="toggleVideo(video.id)">
             @if (expandedVideoId === video.id) {
               <div class="fc-video" (click)="$event.stopPropagation(); togglePlayback($event)">
