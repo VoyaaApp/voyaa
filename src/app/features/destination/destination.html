@@ -39,7 +39,7 @@
         <div class="video-grid">
           @for (video of city.videos; track video.id; let i = $index) {
             <div class="grid-item" (click)="openViewer(city.videos, i)">
-              <video [src]="video.cloudinaryUrl" muted playsinline preload="metadata"></video>
+              <img [src]="getThumbUrl(video.cloudinaryUrl)" alt="" loading="lazy">
               <div class="grid-overlay">
                 <span class="grid-title">{{ video.title }}</span>
               </div>

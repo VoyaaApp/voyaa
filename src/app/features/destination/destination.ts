@@ -28,6 +28,13 @@ export class Destination implements OnInit {
   formatCount = formatCount;
   totalVideos = 0;
 
+  getThumbUrl(url: string): string {
+    if (!url) return '';
+    return url
+      .replace('/video/upload/', '/video/upload/so_0,w_400,h_500,c_fill,q_auto,f_auto/')
+      .replace(/\.[^.]+$/, '.jpg');
+  }
+
   // Video viewer
   showViewer = false;
   viewerVideos: any[] = [];

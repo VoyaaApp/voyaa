@@ -242,6 +242,7 @@ export class Feed implements AfterViewInit, OnDestroy {
   showComments = false;
   comments: any[] = [];
   newComment = '';
+  posting = false;
   private activeVideoId = '';
   private commentsUnsubscribe: (() => void) | null = null;
 
@@ -277,10 +278,15 @@ export class Feed implements AfterViewInit, OnDestroy {
   }
 
   async postComment() {
-    if (!this.newComment.trim()) return;
+    if (!this.newComment.trim() || this.posting) return;
 
     const userId = this.authService.currentUser()?.uid;
     if (!userId) return;
+
+    this.posting = true;
+    const text = this.newComment.trim();
+    this.newComment = '';
+    this.cdr.detectChanges();
 
     // Get username from Firestore user profile
     const userDoc = await getDoc(doc(db, 'users', userId));
@@ -292,7 +298,7 @@ export class Feed implements AfterViewInit, OnDestroy {
       userId,
       username,
       photoURL,
-      text: this.newComment.trim(),
+      text,
       createdAt: new Date().toISOString(),
     });
 
@@ -319,6 +325,7 @@ export class Feed implements AfterViewInit, OnDestroy {
     }
 
     this.newComment = '';
+    this.posting = false;
     this.cdr.detectChanges();
   }
 
@@ -467,17 +474,25 @@ export class Feed implements AfterViewInit, OnDestroy {
       el.pause();
       this.isPaused = true;
     }
-    this.showPauseIndicator = true;
-    this.pauseIndicatorFading = false;
-    this.cdr.detectChanges();
-    setTimeout(() => {
-      this.pauseIndicatorFading = true;
+    if (!this.isPaused) {
+      // Playing: show briefly then fade
+      this.showPauseIndicator = true;
+      this.pauseIndicatorFading = false;
       this.cdr.detectChanges();
-    }, 400);
-    setTimeout(() => {
-      this.showPauseIndicator = false;
+      setTimeout(() => {
+        this.pauseIndicatorFading = true;
+        this.cdr.detectChanges();
+      }, 400);
+      setTimeout(() => {
+        this.showPauseIndicator = false;
+        this.cdr.detectChanges();
+      }, 800);
+    } else {
+      // Paused: stay visible
+      this.showPauseIndicator = true;
+      this.pauseIndicatorFading = false;
       this.cdr.detectChanges();
-    }, 800);
+    }
   }
 
   toggleMute() {

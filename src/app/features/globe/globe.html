@@ -53,6 +53,9 @@
         <span class="mp-country">{{ selectedDestination.country }}</span>
         <span class="mp-meta">{{ formatCount(selectedDestination.videoCount) }} videos · {{ selectedDestination.cities.slice(0, 2).map(c => c.name).join(', ') }}</span>
       </div>
+      <button class="mp-fav" [class.active]="isFavourited" (click)="$event.stopPropagation(); toggleFavourite()">
+        <span class="material-symbols-rounded">star</span>
+      </button>
       <div class="mp-go">
         <span class="material-symbols-rounded">arrow_forward_ios</span>
       </div>

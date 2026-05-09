@@ -4,13 +4,13 @@
   align-items: center;
   justify-content: center;
   height: 100vh;
-  background: radial-gradient(ellipse at top right, rgba(255, 107, 107, 0.15) 0%, transparent 50%),
-            radial-gradient(ellipse at bottom left, rgba(255, 142, 83, 0.15) 0%, transparent 50%),
+  background: radial-gradient(ellipse at top right, rgba(56, 145, 166, 0.15) 0%, transparent 50%),
+            radial-gradient(ellipse at bottom left, rgba(126, 200, 164, 0.15) 0%, transparent 50%),
             #0a0a0a;
   padding: 24px;
 
   .logo {
-    height: 40px;
+    height: 32px;
     margin-bottom: 32px;
   }
 
@@ -52,7 +52,7 @@
     padding: 14px;
     border-radius: 8px;
     border: none;
-    background: linear-gradient(135deg, #FF6B6B, #FF8E53);
+    background: linear-gradient(135deg, #3891a6, #7ec8a4);
     color: #fff;
     font-size: 16px;
     font-weight: 600;
@@ -77,7 +77,7 @@
     margin-top: 24px;
 
     a {
-      color: #FF8E53;
+      color: #7ec8a4;
       text-decoration: none;
       font-weight: 600;
     }
@@ -126,7 +126,7 @@
   &::before {
     width: 300px;
     height: 300px;
-    background: #FF6B6B;
+    background: #3891a6;
     top: -50px;
     right: -50px;
   }
@@ -134,7 +134,7 @@
   &::after {
     width: 250px;
     height: 250px;
-    background: #FF8E53;
+    background: #7ec8a4;
     bottom: 100px;
     left: -80px;
     animation-delay: -4s;

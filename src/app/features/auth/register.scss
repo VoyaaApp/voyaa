@@ -16,8 +16,8 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: radial-gradient(ellipse at top right, rgba(255, 107, 107, 0.15) 0%, transparent 50%),
-              radial-gradient(ellipse at bottom left, rgba(255, 142, 83, 0.15) 0%, transparent 50%);
+    background: radial-gradient(ellipse at top right, rgba(56, 145, 166, 0.15) 0%, transparent 50%),
+              radial-gradient(ellipse at bottom left, rgba(126, 200, 164, 0.15) 0%, transparent 50%);
     pointer-events: none;
     z-index: 0;
   }
@@ -28,7 +28,7 @@
   }
 
   .logo {
-    height: 40px;
+    height: 32px;
     margin-bottom: 32px;
   }
 
@@ -70,7 +70,7 @@
     padding: 14px;
     border-radius: 8px;
     border: none;
-    background: linear-gradient(135deg, #FF6B6B, #FF8E53);
+    background: linear-gradient(135deg, #3891a6, #7ec8a4);
     color: #fff;
     font-size: 16px;
     font-weight: 600;
@@ -103,7 +103,7 @@
 
   .field-error {
     font-size: 12px;
-    color: #FF6B6B;
+    color: #3891a6;
     padding-left: 2px;
   }
 
@@ -140,7 +140,7 @@
     margin-top: 24px;
 
     a {
-      color: #FF8E53;
+      color: #7ec8a4;
       text-decoration: none;
       font-weight: 600;
     }

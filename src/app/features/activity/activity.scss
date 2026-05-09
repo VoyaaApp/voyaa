@@ -46,7 +46,7 @@
   transition: background 0.2s;
 
   &.unread {
-    background: rgba(255, 107, 107, 0.05);
+    background: rgba(56, 145, 166, 0.05);
   }
 
   .notif-avatar {
@@ -104,12 +104,12 @@
     color: #555;
 
     &.type-like {
-      color: #FF6B6B;
+      color: #3891a6;
       font-variation-settings: 'FILL' 1;
     }
 
     &.type-follow {
-      color: #FF8E53;
+      color: #7ec8a4;
     }
 
     &.type-comment {

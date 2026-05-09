@@ -1,8 +1,8 @@
 import { Component, OnInit, OnDestroy, AfterViewInit, inject, ChangeDetectorRef, ElementRef, viewChild } from '@angular/core';
 import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { collection, getDocs } from 'firebase/firestore';
-import { db } from '../../core/services/firebase.service';
+import { collection, getDocs, doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
+import { db, auth } from '../../core/services/firebase.service';
 import { COUNTRY_COORDS, REGION_MAP, REGION_BOUNDS } from '../../shared/data/geo';
 import { formatCount } from '../../shared/utils/format';
 
@@ -35,6 +35,7 @@ export class Globe implements OnInit, AfterViewInit, OnDestroy {
   activeRegion = 'All';
 
   selectedDestination: Destination | null = null;
+  isFavourited = false;
 
   private map: any = null;
   private markers: { marker: any; country: string }[] = [];
@@ -153,11 +154,35 @@ export class Globe implements OnInit, AfterViewInit, OnDestroy {
 
   selectDestination(dest: Destination) {
     this.selectedDestination = dest;
+    this.checkFavouriteStatus(dest.country);
     this.cdr.detectChanges();
     const coords = COUNTRY_COORDS[dest.country];
     if (coords && this.map) {
       this.map.flyTo(coords, 4, { duration: 1 });
     }
+  }
+
+  private async checkFavouriteStatus(country: string) {
+    const uid = auth.currentUser?.uid;
+    if (!uid) { this.isFavourited = false; return; }
+    const favDoc = await getDoc(doc(db, 'users', uid, 'favouriteCountries', country));
+    this.isFavourited = favDoc.exists();
+    this.cdr.detectChanges();
+  }
+
+  async toggleFavourite() {
+    const uid = auth.currentUser?.uid;
+    if (!uid || !this.selectedDestination) return;
+    const country = this.selectedDestination.country;
+    const favRef = doc(db, 'users', uid, 'favouriteCountries', country);
+    if (this.isFavourited) {
+      await deleteDoc(favRef);
+      this.isFavourited = false;
+    } else {
+      await setDoc(favRef, { country, addedAt: new Date().toISOString() });
+      this.isFavourited = true;
+    }
+    this.cdr.detectChanges();
   }
 
   closePreview() {

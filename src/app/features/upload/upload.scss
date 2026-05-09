@@ -50,7 +50,7 @@
     transition: border-color 0.2s;
 
     &:hover {
-      border-color: #FF8E53;
+      border-color: #7ec8a4;
     }
 
     .material-symbols-rounded {
@@ -98,7 +98,7 @@
     padding: 14px;
     border-radius: 8px;
     border: none;
-    background: linear-gradient(135deg, #FF6B6B, #FF8E53);
+    background: linear-gradient(135deg, #3891a6, #7ec8a4);
     color: #fff;
     font-size: 16px;
     font-weight: 600;
@@ -137,7 +137,7 @@
 
     .loc-icon {
       font-size: 20px;
-      color: #FF8E53;
+      color: #7ec8a4;
       flex-shrink: 0;
     }
 
@@ -185,7 +185,7 @@
       width: 16px;
       height: 16px;
       border: 2px solid #333;
-      border-top-color: #FF8E53;
+      border-top-color: #7ec8a4;
       border-radius: 50%;
       animation: spin 0.6s linear infinite;
     }
@@ -218,7 +218,7 @@
 
       .dropdown-icon {
         font-size: 18px;
-        color: #FF8E53;
+        color: #7ec8a4;
         flex-shrink: 0;
       }
     }
@@ -271,7 +271,7 @@
   width: 48px;
   height: 48px;
   border: 3px solid #2a2a2a;
-  border-top-color: #FF8E53;
+  border-top-color: #7ec8a4;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }

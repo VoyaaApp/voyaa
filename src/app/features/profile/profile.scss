@@ -1,14 +1,17 @@
 .profile-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   padding: 12px 16px;
   background: #0a0a0a;
+  position: relative;
 
   .header-logo {
-    height: 28px;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    height: 32px;
     width: auto;
-    margin-right: auto;
   }
 
   .header-bell {
@@ -16,10 +19,17 @@
     align-items: center;
     justify-content: center;
     text-decoration: none;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.06);
+    transition: background 0.2s;
+
+    &:active { background: rgba(255, 255, 255, 0.12); }
 
     .material-symbols-rounded {
-      font-size: 26px;
-      color: #fff;
+      font-size: 20px;
+      color: rgba(255, 255, 255, 0.8);
     }
   }
 }
@@ -81,7 +91,7 @@
           inset: 0;
           border-radius: 50%;
           border: 3px solid transparent;
-          border-top-color: #FF6B6B;
+          border-top-color: #3891a6;
           animation: spin 0.8s linear infinite;
         }
       }
@@ -145,18 +155,22 @@
       gap: 8px;
 
       .upload-btn {
+        flex: 1;
         display: flex;
         align-items: center;
         justify-content: center;
-        width: 36px;
-        height: 36px;
+        gap: 6px;
+        padding: 7px 12px;
         border-radius: 8px;
-        background: linear-gradient(135deg, #FF6B6B, #FF8E53);
+        background: linear-gradient(135deg, #3891a6, #7ec8a4);
         text-decoration: none;
-        flex-shrink: 0;
+        color: #fff;
+        font-size: 13px;
+        font-weight: 600;
+        font-family: 'Inter', sans-serif;
 
         .material-symbols-rounded {
-          font-size: 20px;
+          font-size: 18px;
           color: #fff;
         }
       }
@@ -183,7 +197,7 @@
         padding: 8px 24px;
         border-radius: 8px;
         border: none;
-        background: linear-gradient(135deg, #FF6B6B, #FF8E53);
+        background: linear-gradient(135deg, #3891a6, #7ec8a4);
         color: #fff;
         font-size: 14px;
         font-weight: 600;
@@ -556,7 +570,7 @@
       padding: 14px;
       border-radius: 8px;
       border: none;
-      background: linear-gradient(135deg, #FF6B6B, #FF8E53);
+      background: linear-gradient(135deg, #3891a6, #7ec8a4);
       color: #fff;
       font-size: 16px;
       font-weight: 600;
@@ -578,7 +592,7 @@
 
     .edit-error {
       font-size: 12px;
-      color: #FF6B6B;
+      color: #3891a6;
       text-align: center;
     }
   }
@@ -740,12 +754,12 @@
         }
 
         &.liked .material-symbols-rounded {
-          color: #FF6B6B;
+          color: #3891a6;
           font-variation-settings: 'FILL' 1;
         }
 
         &.bookmarked .material-symbols-rounded {
-          color: #FF8E53;
+          color: #7ec8a4;
           font-variation-settings: 'FILL' 1;
         }
 
@@ -977,7 +991,7 @@
       }
 
       .material-symbols-rounded {
-        color: #FF6B6B;
+        color: #3891a6;
         font-size: 24px;
       }
     }
@@ -995,7 +1009,7 @@
 
   .material-symbols-rounded {
     font-size: 80px;
-    color: #FF6B6B;
+    color: #3891a6;
     font-variation-settings: 'FILL' 1;
     animation: heartPop 0.8s ease-out forwards;
   }
@@ -1091,7 +1105,7 @@
         width: 28px;
         height: 28px;
         border: 3px solid #333;
-        border-top-color: #FF8E53;
+        border-top-color: #7ec8a4;
         border-radius: 50%;
         animation: spin 0.7s linear infinite;
       }

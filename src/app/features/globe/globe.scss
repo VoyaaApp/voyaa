@@ -32,10 +32,10 @@
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    background: rgba(255, 107, 107, 0.85);
+    background: rgba(56, 145, 166, 0.85);
     box-shadow:
-      0 0 0 3px rgba(255, 107, 107, 0.25),
-      0 0 20px rgba(255, 107, 107, 0.3),
+      0 0 0 3px rgba(56, 145, 166, 0.25),
+      0 0 20px rgba(56, 145, 166, 0.3),
       0 2px 8px rgba(0, 0, 0, 0.4);
     animation: pulse 2.5s ease-in-out infinite;
   }
@@ -63,8 +63,8 @@
 }
 
 @keyframes pulse {
-  0%, 100% { box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.25), 0 0 20px rgba(255, 107, 107, 0.3), 0 2px 8px rgba(0, 0, 0, 0.4); }
-  50% { box-shadow: 0 0 0 6px rgba(255, 107, 107, 0.12), 0 0 30px rgba(255, 107, 107, 0.2), 0 2px 8px rgba(0, 0, 0, 0.4); }
+  0%, 100% { box-shadow: 0 0 0 3px rgba(56, 145, 166, 0.25), 0 0 20px rgba(56, 145, 166, 0.3), 0 2px 8px rgba(0, 0, 0, 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(56, 145, 166, 0.12), 0 0 30px rgba(56, 145, 166, 0.2), 0 2px 8px rgba(0, 0, 0, 0.4); }
 }
 
 // ── Back button ─────────────────────────────
@@ -135,9 +135,9 @@
 
     &:focus {
       outline: none;
-      border-color: rgba(255, 107, 107, 0.4);
+      border-color: rgba(56, 145, 166, 0.4);
       background: rgba(18, 18, 18, 0.9);
-      box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.08);
+      box-shadow: 0 0 0 3px rgba(56, 145, 166, 0.08);
     }
   }
 
@@ -185,7 +185,7 @@
 
       &:active { background: rgba(255, 255, 255, 0.08); }
 
-      .material-symbols-rounded { font-size: 18px; color: #FF8E53; }
+      .material-symbols-rounded { font-size: 18px; color: #7ec8a4; }
       .search-item-meta { margin-left: auto; color: rgba(255,255,255,0.3); font-size: 12px; }
     }
   }
@@ -226,9 +226,9 @@
 
   &.active {
     border-color: transparent;
-    background: linear-gradient(135deg, #FF6B6B, #FF8E53);
+    background: linear-gradient(135deg, #3891a6, #7ec8a4);
     color: #fff;
-    box-shadow: 0 4px 16px rgba(255, 107, 107, 0.3);
+    box-shadow: 0 4px 16px rgba(56, 145, 166, 0.3);
   }
 }
 
@@ -283,12 +283,36 @@
     .mp-meta { color: rgba(255,255,255,0.4); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   }
 
+  .mp-fav {
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255, 255, 255, 0.06);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+
+    .material-symbols-rounded { font-size: 20px; color: rgba(255, 255, 255, 0.4); }
+
+    &.active {
+      background: rgba(255, 193, 7, 0.15);
+      .material-symbols-rounded {
+        color: #FFC107;
+        font-variation-settings: 'FILL' 1;
+      }
+    }
+  }
+
   .mp-go {
     flex-shrink: 0;
     width: 34px;
     height: 34px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #FF6B6B, #FF8E53);
+    background: linear-gradient(135deg, #3891a6, #7ec8a4);
     display: flex;
     align-items: center;
     justify-content: center;

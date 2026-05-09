@@ -153,7 +153,7 @@
 
       .location-icon {
         font-size: 16px;
-        color: #FF8E53;
+        color: #7ec8a4;
       }
     }
   }
@@ -193,12 +193,12 @@
     }
 
     &.liked .material-symbols-rounded {
-      color: #FF6B6B;
+      color: #3891a6;
       font-variation-settings: 'FILL' 1;
     }
 
     &.bookmarked .material-symbols-rounded {
-      color: #FF8E53;
+      color: #7ec8a4;
       font-variation-settings: 'FILL' 1;
     }
 
@@ -432,7 +432,7 @@
       }
 
       .material-symbols-rounded {
-        color: #FF8E53;
+        color: #7ec8a4;
         font-size: 24px;
       }
     }
@@ -455,7 +455,7 @@
 
   .material-symbols-rounded {
     font-size: 80px;
-    color: #FF6B6B;
+    color: #3891a6;
     font-variation-settings: 'FILL' 1;
     animation: heartPop 0.8s ease-out forwards;
   }
@@ -505,12 +505,27 @@
   100% { background-position: -200% 0; }
 }
 
-// Pause/Play indicator
-.pause-indicator {
+// Pause/Play controls
+.pause-controls {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  z-index: 5;
+  opacity: 1;
+  transition: opacity 0.4s ease-out;
+
+  &.fade-out {
+    opacity: 0;
+    pointer-events: none;
+  }
+}
+
+.pause-indicator {
   pointer-events: none;
   background: rgba(0, 0, 0, 0.5);
   border-radius: 50%;
@@ -519,16 +534,26 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  opacity: 1;
-  transition: opacity 0.4s ease-out;
-  z-index: 5;
-
-  &.fade-out {
-    opacity: 0;
-  }
 
   .material-symbols-rounded {
     font-size: 28px;
+    color: #fff;
+  }
+}
+
+.mute-btn {
+  background: rgba(0, 0, 0, 0.5);
+  border: none;
+  border-radius: 50%;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+
+  .material-symbols-rounded {
+    font-size: 22px;
     color: #fff;
   }
 }

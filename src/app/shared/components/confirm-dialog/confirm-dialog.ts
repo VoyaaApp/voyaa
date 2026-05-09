@@ -71,7 +71,7 @@ import { Component, input, output } from '@angular/core';
       }
 
       .confirm-btn {
-        background: linear-gradient(135deg, #FF6B6B, #FF8E53);
+        background: linear-gradient(135deg, #3891a6, #7ec8a4);
         color: #fff;
 
         &.destructive {

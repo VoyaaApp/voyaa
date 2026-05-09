@@ -85,23 +85,22 @@
                 <button class="action-btn" [class.bookmarked]="video.bookmarked" (click)="toggleBookmark(video)">
                     <span class="material-symbols-rounded">{{ video.bookmarked ? 'bookmark' : 'bookmark_border' }}</span>
                 </button>
-                <button class="action-btn" (click)="toggleMute()">
-                    <span class="material-symbols-rounded">{{ isMuted ? 'volume_off' : 'volume_up' }}</span>
-                </button>
             </div>
             @if (video.showHeart) {
               <div class="heart-animation">
                 <span class="material-symbols-rounded">favorite</span>
               </div>
             }
-            @if (showMuteIndicator) {
-              <div class="mute-indicator" [class.fade-out]="muteIndicatorFading">
-                <span class="material-symbols-rounded">{{ isMuted ? 'volume_off' : 'volume_up' }}</span>
-              </div>
-            }
             @if (showPauseIndicator) {
-              <div class="pause-indicator" [class.fade-out]="pauseIndicatorFading">
-                <span class="material-symbols-rounded">{{ isPaused ? 'pause' : 'play_arrow' }}</span>
+              <div class="pause-controls" [class.fade-out]="pauseIndicatorFading">
+                <div class="pause-indicator">
+                  <span class="material-symbols-rounded">{{ isPaused ? 'pause' : 'play_arrow' }}</span>
+                </div>
+                @if (isPaused) {
+                  <button class="mute-btn" (click)="$event.stopPropagation(); toggleMute()">
+                    <span class="material-symbols-rounded">{{ isMuted ? 'volume_off' : 'volume_up' }}</span>
+                  </button>
+                }
               </div>
             }
         </div>
@@ -148,8 +147,8 @@
       }
     </div>
     <div class="comment-input">
-      <input type="text" [(ngModel)]="newComment" placeholder="Add a comment..." (keyup.enter)="postComment()">
-      <button (click)="postComment()" [disabled]="!newComment.trim()">
+      <input type="text" [(ngModel)]="newComment" placeholder="Add a comment..." (keyup.enter)="postComment()" [disabled]="posting">
+      <button (click)="postComment()" [disabled]="!newComment.trim() || posting">
         <span class="material-symbols-rounded">send</span>
       </button>
     </div>
