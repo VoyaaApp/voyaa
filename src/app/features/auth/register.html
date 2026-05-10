@@ -31,6 +31,14 @@
         <span class="field-error">{{ usernameError }}</span>
       }
     </div>
+    <div class="field">
+      <select [(ngModel)]="nationality" name="nationality" required>
+        <option value="" disabled>Home Country</option>
+        @for (c of countries; track c) {
+          <option [value]="c">{{ c }}</option>
+        }
+      </select>
+    </div>
     <label class="dob-label">Date of Birth</label>
     <div class="dob-row">
       <input type="text" [(ngModel)]="dobDay" name="dobDay" placeholder="DD" maxlength="2" required>

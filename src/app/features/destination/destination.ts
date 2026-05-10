@@ -58,6 +58,7 @@ export class Destination implements OnInit {
   showComments = false;
   comments: any[] = [];
   newComment = '';
+  replyingTo: any = null;
   private activeVideoId = '';
   private commentsUnsubscribe: (() => void) | null = null;
 
@@ -184,16 +185,11 @@ export class Destination implements OnInit {
   }
 
   onPointerDown(event: Event, video: any) {
-    this.isLongPress = false;
-    this.pressTimer = setTimeout(() => {
-      this.isLongPress = true;
-      this.toggleMute();
-    }, 500);
+    // No long-press behavior
   }
 
   onPointerUp(event: Event, video: any) {
     clearTimeout(this.pressTimer);
-    if (this.isLongPress) return;
 
     if (this.pendingTap) {
       clearTimeout(this.tapTimer);
@@ -222,20 +218,21 @@ export class Destination implements OnInit {
     if (!el) return;
     if (el.paused) { el.play(); this.isPaused = false; }
     else { el.pause(); this.isPaused = true; }
-    this.showPauseIndicator = true;
-    this.pauseIndicatorFading = false;
-    this.cdr.detectChanges();
-    setTimeout(() => { this.pauseIndicatorFading = true; this.cdr.detectChanges(); }, 400);
-    setTimeout(() => { this.showPauseIndicator = false; this.cdr.detectChanges(); }, 800);
+    if (!this.isPaused) {
+      this.showPauseIndicator = true;
+      this.pauseIndicatorFading = false;
+      this.cdr.detectChanges();
+      setTimeout(() => { this.pauseIndicatorFading = true; this.cdr.detectChanges(); }, 400);
+      setTimeout(() => { this.showPauseIndicator = false; this.cdr.detectChanges(); }, 800);
+    } else {
+      this.showPauseIndicator = true;
+      this.pauseIndicatorFading = false;
+      this.cdr.detectChanges();
+    }
   }
 
   toggleMute() {
     this.viewerMuted = !this.viewerMuted;
-    this.showMuteIndicator = true;
-    this.muteIndicatorFading = false;
-    this.cdr.detectChanges();
-    setTimeout(() => { this.muteIndicatorFading = true; this.cdr.detectChanges(); }, 500);
-    setTimeout(() => { this.showMuteIndicator = false; this.cdr.detectChanges(); }, 1000);
   }
 
   async toggleLike(video: any) {
@@ -282,27 +279,81 @@ export class Destination implements OnInit {
     this.activeVideoId = video.id;
     this.showComments = true;
     this.comments = [];
+    this.replyingTo = null;
 
+    const userId = this.authService.currentUser()?.uid;
     const commentsRef = collection(db, 'videos', video.id, 'comments');
     const q = query(commentsRef, orderBy('createdAt', 'asc'));
 
     this.commentsUnsubscribe = onSnapshot(q, async (snapshot) => {
-      this.comments = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      const needPhoto = this.comments.filter(c => !c.photoURL);
+      const allComments: any[] = snapshot.docs.map(d => ({ id: d.id, ...d.data(), liked: false, showReplies: false, replies: [] as any[] }));
+
+      if (userId) {
+        await Promise.all(allComments.map(async (comment) => {
+          const likeDoc = await getDoc(doc(db, 'videos', video.id, 'comments', comment.id, 'likes', userId));
+          comment.liked = likeDoc.exists();
+        }));
+      }
+
+      const needPhoto = allComments.filter(c => !c.photoURL);
       if (needPhoto.length > 0) {
         await Promise.all(needPhoto.map(async (comment) => {
           const uDoc = await getDoc(doc(db, 'users', comment.userId));
           comment.photoURL = uDoc.exists() ? uDoc.data()['photoURL'] || '' : '';
         }));
       }
+
+      const topLevel = allComments.filter(c => !c.parentId);
+      const replies = allComments.filter(c => c.parentId);
+      const prevShowState = new Map(this.comments.map(c => [c.id, c.showReplies]));
+
+      topLevel.forEach(c => {
+        c.replies = replies.filter(r => r.parentId === c.id);
+        c.replyCount = c.replies.length;
+        c.showReplies = prevShowState.get(c.id) || false;
+      });
+
+      this.comments = topLevel;
       this.cdr.detectChanges();
     });
   }
 
   closeComments() {
     this.showComments = false;
+    this.replyingTo = null;
     this.commentsUnsubscribe?.();
     this.commentsUnsubscribe = null;
+  }
+
+  startReply(comment: any) {
+    this.replyingTo = comment;
+    this.newComment = '';
+  }
+
+  cancelReply() {
+    this.replyingTo = null;
+    this.newComment = '';
+  }
+
+  async toggleCommentLike(comment: any) {
+    const userId = this.authService.currentUser()?.uid;
+    if (!userId) return;
+
+    const likeRef = doc(db, 'videos', this.activeVideoId, 'comments', comment.id, 'likes', userId);
+    const commentRef = doc(db, 'videos', this.activeVideoId, 'comments', comment.id);
+
+    if (comment.liked) {
+      comment.liked = false;
+      comment.likeCount = (comment.likeCount || 1) - 1;
+      await deleteDoc(likeRef);
+      await updateDoc(commentRef, { likeCount: increment(-1) });
+    } else {
+      comment.liked = true;
+      comment.likeCount = (comment.likeCount || 0) + 1;
+      await setDoc(likeRef, { userId, createdAt: new Date().toISOString() });
+      await updateDoc(commentRef, { likeCount: increment(1) });
+    }
+    this.cdr.detectChanges();
   }
 
   async postComment() {
@@ -310,15 +361,23 @@ export class Destination implements OnInit {
     const userId = this.authService.currentUser()?.uid;
     if (!userId) return;
 
+    const text = this.newComment.trim();
+    this.newComment = '';
+    const parentId = this.replyingTo?.id || null;
+    this.replyingTo = null;
+    this.cdr.detectChanges();
+
     const userDoc = await getDoc(doc(db, 'users', userId));
     const username = userDoc.exists() ? userDoc.data()['username'] : 'Anonymous';
     const photoURL = userDoc.exists() ? userDoc.data()['photoURL'] || '' : '';
 
-    await addDoc(collection(db, 'videos', this.activeVideoId, 'comments'), {
-      userId, username, photoURL,
-      text: this.newComment.trim(),
+    const commentData: any = {
+      userId, username, photoURL, text,
       createdAt: new Date().toISOString(),
-    });
+      likeCount: 0,
+    };
+    if (parentId) commentData.parentId = parentId;
+    await addDoc(collection(db, 'videos', this.activeVideoId, 'comments'), commentData);
 
     const videoRef = doc(db, 'videos', this.activeVideoId);
     await updateDoc(videoRef, { commentCount: increment(1) });
@@ -326,7 +385,11 @@ export class Destination implements OnInit {
     const video = this.viewerVideos.find(v => v.id === this.activeVideoId);
     if (video) video.commentCount++;
 
-    this.newComment = '';
+    if (parentId) {
+      const parent = this.comments.find(c => c.id === parentId);
+      if (parent) parent.showReplies = true;
+    }
+
     this.cdr.detectChanges();
   }
 
@@ -337,10 +400,20 @@ export class Destination implements OnInit {
     this.confirmMessage = 'Delete this comment?';
     this.confirmAction = async () => {
       await deleteDoc(doc(db, 'videos', this.activeVideoId, 'comments', comment.id));
+
+      if (!comment.parentId && comment.replies?.length) {
+        await Promise.all(comment.replies.map((r: any) =>
+          deleteDoc(doc(db, 'videos', this.activeVideoId, 'comments', r.id))
+        ));
+      }
+
       const videoRef = doc(db, 'videos', this.activeVideoId);
-      await updateDoc(videoRef, { commentCount: increment(-1) });
+      const deleteCount = comment.parentId ? 1 : 1 + (comment.replies?.length || 0);
+      await updateDoc(videoRef, { commentCount: increment(-deleteCount) });
+
       const video = this.viewerVideos.find(v => v.id === this.activeVideoId);
-      if (video) video.commentCount--;
+      if (video) video.commentCount -= deleteCount;
+
       this.cdr.detectChanges();
     };
     this.showConfirm = true;

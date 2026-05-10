@@ -7,6 +7,7 @@ import { timeAgo } from '../../shared/utils/time';
 import { db, auth } from '../../core/services/firebase.service';
 import { collection, getDocs, query, where, doc, getDoc, updateDoc, deleteDoc, setDoc, increment, addDoc, onSnapshot, orderBy } from 'firebase/firestore';
 import { environment } from '../../environments/environment';
+import { COUNTRY_FLAGS, COUNTRY_CODES, REGION_MAP, COUNTRY_COORDS } from '../../shared/data/geo';
 
 @Component({
   selector: 'app-profile',
@@ -36,6 +37,7 @@ export class Profile implements OnInit, OnDestroy {
   showComments = false;
   comments: any[] = [];
   newComment = '';
+  replyingTo: any = null;
   private activeVideoId = '';
   private commentsUnsubscribe: (() => void) | null = null;
 
@@ -46,7 +48,9 @@ export class Profile implements OnInit, OnDestroy {
 
   editUsername = '';
   editBio = '';
+  editNationality = '';
   editError = '';
+  countries = Object.keys(COUNTRY_COORDS).sort();
   readonly usernameMin = 3;
 
   getThumbUrl(url: string): string {
@@ -75,11 +79,18 @@ export class Profile implements OnInit, OnDestroy {
   userListLoading = false;
 
   // Saved tab
-  activeTab: 'posts' | 'saved' = 'posts';
+  activeTab: 'posts' | 'saved' | 'stamps' = 'posts';
   savedGroups: { country: string; videos: any[]; thumbnail: string }[] = [];
   savedGroupVideos: any[] = [];
   savedGroupCountry = '';
   showSavedGroup = false;
+
+  // Passport features
+
+  travelStats = { countries: 0, continents: 0, videos: 0 };
+  stamps: { country: string; flag: string; firstVisit: string; videoCount: number }[] = [];
+  badges: { name: string; icon: string; description: string; earned: boolean }[] = [];
+  activeBadge: { name: string; icon: string; description: string; earned: boolean } | null = null;
 
   // Confirm dialog state
   showConfirm = false;
@@ -146,7 +157,70 @@ export class Profile implements OnInit, OnDestroy {
     }
 
     this.loading = false;
+    this.computePassportData();
     this.cdr.detectChanges();
+  }
+
+  private computePassportData() {
+    // Travel stats
+    const countrySet = new Set<string>();
+    const continentSet = new Set<string>();
+    const countryFirstVisit = new Map<string, string>();
+    const countryVideoCount = new Map<string, number>();
+
+    for (const v of this.videos) {
+      const country = v.location?.country;
+      if (!country) continue;
+      countrySet.add(country);
+      const region = REGION_MAP[country];
+      if (region) continentSet.add(region);
+      countryVideoCount.set(country, (countryVideoCount.get(country) || 0) + 1);
+      const existing = countryFirstVisit.get(country);
+      if (!existing || v.createdAt < existing) {
+        countryFirstVisit.set(country, v.createdAt);
+      }
+    }
+
+    this.travelStats = {
+      countries: countrySet.size,
+      continents: continentSet.size,
+      videos: this.videos.length,
+    };
+
+    // Stamps
+    this.stamps = Array.from(countrySet).map(country => ({
+      country,
+      flag: this.getFlagUrl(country),
+      firstVisit: new Date(countryFirstVisit.get(country)!).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+      videoCount: countryVideoCount.get(country) || 0,
+    })).sort((a, b) => (countryFirstVisit.get(a.country)! > countryFirstVisit.get(b.country)! ? 1 : -1));
+
+    // Badges
+    const nc = countrySet.size;
+    const nr = continentSet.size;
+    const nv = this.videos.length;
+    this.badges = [
+      { name: 'First Stamp', icon: 'workspace_premium', description: 'Post your first video', earned: nv >= 1 },
+      { name: 'Explorer', icon: 'explore', description: 'Post from 3+ countries', earned: nc >= 3 },
+      { name: 'Globe Trotter', icon: 'language', description: 'Post from 5+ countries', earned: nc >= 5 },
+      { name: 'Continental', icon: 'public', description: 'Post from 3+ continents', earned: nr >= 3 },
+      { name: 'Storyteller', icon: 'auto_stories', description: 'Post 10+ videos', earned: nv >= 10 },
+      { name: 'World Traveler', icon: 'flight_takeoff', description: 'Post from 10+ countries', earned: nc >= 10 },
+    ];
+  }
+
+  getFlagUrl(country: string): string {
+    const code = COUNTRY_CODES[country];
+    if (!code) return '';
+    return `https://flagcdn.com/w80/${code}.png`;
+  }
+
+  getFlag(country: string): string {
+    return this.getFlagUrl(country);
+  }
+
+  showBadgeInfo(badge: { name: string; icon: string; description: string; earned: boolean }) {
+    this.activeBadge = this.activeBadge?.name === badge.name ? null : badge;
   }
 
   onDoubleTap(video: any) {
@@ -164,6 +238,7 @@ export class Profile implements OnInit, OnDestroy {
   openEdit() {
     this.editUsername = this.profileUser.username || '';
     this.editBio = this.profileUser.bio || '';
+    this.editNationality = this.profileUser.nationality || '';
     this.editError = '';
     this.isEditing = true;
   }
@@ -235,10 +310,12 @@ export class Profile implements OnInit, OnDestroy {
     await updateDoc(userRef, {
       username: trimmedName,
       bio: trimmedBio,
+      nationality: this.editNationality,
     });
 
     this.profileUser.username = trimmedName;
     this.profileUser.bio = trimmedBio;
+    this.profileUser.nationality = this.editNationality;
     this.isEditing = false;
     this.cdr.detectChanges();
   }
@@ -402,16 +479,11 @@ export class Profile implements OnInit, OnDestroy {
   }
 
   onViewerPointerDown(event: Event, video: any) {
-    this.isLongPress = false;
-    this.pressTimer = setTimeout(() => {
-      this.isLongPress = true;
-      this.toggleViewerMute();
-    }, 500);
+    // No long-press behavior
   }
 
   onViewerPointerUp(event: Event, video: any) {
     clearTimeout(this.pressTimer);
-    if (this.isLongPress) return;
 
     if (this.pendingTap) {
       clearTimeout(this.tapTimer);
@@ -436,28 +508,21 @@ export class Profile implements OnInit, OnDestroy {
       el.pause();
       this.isPaused = true;
     }
-    this.showPauseIndicator = true;
-    this.pauseIndicatorFading = false;
-    this.cdr.detectChanges();
-    setTimeout(() => { this.pauseIndicatorFading = true; this.cdr.detectChanges(); }, 400);
-    setTimeout(() => { this.showPauseIndicator = false; this.cdr.detectChanges(); }, 800);
+    if (!this.isPaused) {
+      this.showPauseIndicator = true;
+      this.pauseIndicatorFading = false;
+      this.cdr.detectChanges();
+      setTimeout(() => { this.pauseIndicatorFading = true; this.cdr.detectChanges(); }, 400);
+      setTimeout(() => { this.showPauseIndicator = false; this.cdr.detectChanges(); }, 800);
+    } else {
+      this.showPauseIndicator = true;
+      this.pauseIndicatorFading = false;
+      this.cdr.detectChanges();
+    }
   }
 
   toggleViewerMute() {
     this.viewerMuted = !this.viewerMuted;
-    this.showMuteIndicator = true;
-    this.muteIndicatorFading = false;
-    this.cdr.detectChanges();
-
-    setTimeout(() => {
-      this.muteIndicatorFading = true;
-      this.cdr.detectChanges();
-    }, 500);
-
-    setTimeout(() => {
-      this.showMuteIndicator = false;
-      this.cdr.detectChanges();
-    }, 1000);
   }
 
   async toggleLike(video: any) {
@@ -538,7 +603,7 @@ export class Profile implements OnInit, OnDestroy {
     this.router.navigate(['/profile', uid]);
   }
 
-  async switchTab(tab: 'posts' | 'saved') {
+  async switchTab(tab: 'posts' | 'saved' | 'stamps') {
     this.activeTab = tab;
     if (tab === 'saved' && this.savedGroups.length === 0) {
       await this.loadSavedBookmarks();
@@ -580,29 +645,83 @@ export class Profile implements OnInit, OnDestroy {
     this.activeVideoId = video.id;
     this.showComments = true;
     this.comments = [];
+    this.replyingTo = null;
 
+    const userId = this.authService.currentUser()?.uid;
     const commentsRef = collection(db, 'videos', video.id, 'comments');
     const q = query(commentsRef, orderBy('createdAt', 'asc'));
 
     this.commentsUnsubscribe = onSnapshot(q, async (snapshot) => {
-      this.comments = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      const needPhoto = this.comments.filter(c => !c.photoURL);
+      const allComments: any[] = snapshot.docs.map(d => ({ id: d.id, ...d.data(), liked: false, showReplies: false, replies: [] as any[] }));
+
+      if (userId) {
+        await Promise.all(allComments.map(async (comment) => {
+          const likeDoc = await getDoc(doc(db, 'videos', video.id, 'comments', comment.id, 'likes', userId));
+          comment.liked = likeDoc.exists();
+        }));
+      }
+
+      const needPhoto = allComments.filter(c => !c.photoURL);
       if (needPhoto.length > 0) {
         await Promise.all(needPhoto.map(async (comment) => {
           const uDoc = await getDoc(doc(db, 'users', comment.userId));
           comment.photoURL = uDoc.exists() ? uDoc.data()['photoURL'] || '' : '';
         }));
       }
+
+      const topLevel = allComments.filter(c => !c.parentId);
+      const replies = allComments.filter(c => c.parentId);
+      const prevShowState = new Map(this.comments.map(c => [c.id, c.showReplies]));
+
+      topLevel.forEach(c => {
+        c.replies = replies.filter(r => r.parentId === c.id);
+        c.replyCount = c.replies.length;
+        c.showReplies = prevShowState.get(c.id) || false;
+      });
+
+      this.comments = topLevel;
       this.cdr.detectChanges();
     });
   }
 
   closeComments() {
     this.showComments = false;
+    this.replyingTo = null;
     if (this.commentsUnsubscribe) {
       this.commentsUnsubscribe();
       this.commentsUnsubscribe = null;
     }
+  }
+
+  startReply(comment: any) {
+    this.replyingTo = comment;
+    this.newComment = '';
+  }
+
+  cancelReply() {
+    this.replyingTo = null;
+    this.newComment = '';
+  }
+
+  async toggleCommentLike(comment: any) {
+    const userId = this.authService.currentUser()?.uid;
+    if (!userId) return;
+
+    const likeRef = doc(db, 'videos', this.activeVideoId, 'comments', comment.id, 'likes', userId);
+    const commentRef = doc(db, 'videos', this.activeVideoId, 'comments', comment.id);
+
+    if (comment.liked) {
+      comment.liked = false;
+      comment.likeCount = (comment.likeCount || 1) - 1;
+      await deleteDoc(likeRef);
+      await updateDoc(commentRef, { likeCount: increment(-1) });
+    } else {
+      comment.liked = true;
+      comment.likeCount = (comment.likeCount || 0) + 1;
+      await setDoc(likeRef, { userId, createdAt: new Date().toISOString() });
+      await updateDoc(commentRef, { likeCount: increment(1) });
+    }
+    this.cdr.detectChanges();
   }
 
   async postComment() {
@@ -610,18 +729,27 @@ export class Profile implements OnInit, OnDestroy {
     const userId = this.authService.currentUser()?.uid;
     if (!userId) return;
 
+    const text = this.newComment.trim();
+    this.newComment = '';
+    const parentId = this.replyingTo?.id || null;
+    this.replyingTo = null;
+    this.cdr.detectChanges();
+
     const userDoc = await getDoc(doc(db, 'users', userId));
     const username = userDoc.exists() ? userDoc.data()['username'] : 'Anonymous';
     const photoURL = userDoc.exists() ? userDoc.data()['photoURL'] || '' : '';
 
     const commentsRef = collection(db, 'videos', this.activeVideoId, 'comments');
-    await addDoc(commentsRef, {
+    const commentData: any = {
       userId,
       username,
       photoURL,
-      text: this.newComment.trim(),
+      text,
       createdAt: new Date().toISOString(),
-    });
+      likeCount: 0,
+    };
+    if (parentId) commentData.parentId = parentId;
+    await addDoc(commentsRef, commentData);
 
     const videoRef = doc(db, 'videos', this.activeVideoId);
     await updateDoc(videoRef, { commentCount: increment(1) });
@@ -629,7 +757,11 @@ export class Profile implements OnInit, OnDestroy {
     const video = this.videos.find(v => v.id === this.activeVideoId);
     if (video) video.commentCount++;
 
-    this.newComment = '';
+    if (parentId) {
+      const parent = this.comments.find(c => c.id === parentId);
+      if (parent) parent.showReplies = true;
+    }
+
     this.cdr.detectChanges();
   }
 
@@ -639,10 +771,20 @@ export class Profile implements OnInit, OnDestroy {
 
     this.openConfirm('Delete this comment?', 'Delete', true, async () => {
       await deleteDoc(doc(db, 'videos', this.activeVideoId, 'comments', comment.id));
+
+      if (!comment.parentId && comment.replies?.length) {
+        await Promise.all(comment.replies.map((r: any) =>
+          deleteDoc(doc(db, 'videos', this.activeVideoId, 'comments', r.id))
+        ));
+      }
+
       const videoRef = doc(db, 'videos', this.activeVideoId);
-      await updateDoc(videoRef, { commentCount: increment(-1) });
+      const deleteCount = comment.parentId ? 1 : 1 + (comment.replies?.length || 0);
+      await updateDoc(videoRef, { commentCount: increment(-deleteCount) });
+
       const video = this.videos.find(v => v.id === this.activeVideoId);
-      if (video) video.commentCount--;
+      if (video) video.commentCount -= deleteCount;
+
       this.cdr.detectChanges();
     });
   }

@@ -14,13 +14,36 @@
   </div>
 
   <!-- ── Search ── -->
-  <div class="search-bar">
-    <span class="material-symbols-rounded search-icon">search</span>
-    <input type="text" [(ngModel)]="searchQuery" (input)="onSearch()" placeholder="Where do you want to go?">
-    @if (searchQuery) {
-      <button class="search-clear" (click)="searchQuery = ''; onSearch()">
-        <span class="material-symbols-rounded">close</span>
-      </button>
+  <div class="search-wrapper">
+    <div class="search-bar">
+      <span class="material-symbols-rounded search-icon">search</span>
+      <input type="text" [(ngModel)]="searchQuery" (input)="onSearch()" placeholder="Where do you want to go?">
+      @if (searchQuery) {
+        <button class="search-clear" (click)="searchQuery = ''; searchUsers = []; onSearch()">
+          <span class="material-symbols-rounded">close</span>
+        </button>
+      }
+    </div>
+    @if (searchUsers.length > 0) {
+      <div class="search-results">
+        @for (user of searchUsers; track user.uid) {
+          <div class="search-result-item" (click)="goToProfile(user.uid)">
+            <div class="sr-avatar">
+              @if (user.photoURL) {
+                <img [src]="user.photoURL" alt="">
+              } @else {
+                <span class="material-symbols-rounded">account_circle</span>
+              }
+            </div>
+            <div class="sr-info">
+              <span class="sr-username">{{ user.username }}</span>
+              @if (user.nationality) {
+                <span class="sr-nationality">{{ user.nationality }}</span>
+              }
+            </div>
+          </div>
+        }
+      </div>
     }
   </div>
 
@@ -56,8 +79,25 @@
       <div class="following-list">
         @for (video of displayedVideos; track video.id) {
           <div class="following-card expanded">
-              <div class="fc-video" (click)="togglePlayback($event)">
-                <video [src]="video.cloudinaryUrl" loop playsinline muted #followingVideo></video>
+              <div class="fc-video" (click)="togglePlayback($event, video)">
+                <video [src]="video.cloudinaryUrl" [poster]="getThumbUrl(video.cloudinaryUrl)" loop playsinline [muted]="isMuted" #followingVideo></video>
+                @if (video.showHeart) {
+                  <div class="heart-animation">
+                    <span class="material-symbols-rounded">favorite</span>
+                  </div>
+                }
+                @if (showPauseIndicator) {
+                  <div class="pause-controls" [class.fade-out]="pauseIndicatorFading">
+                    <div class="pause-indicator">
+                      <span class="material-symbols-rounded">{{ isPaused ? 'pause' : 'play_arrow' }}</span>
+                    </div>
+                    @if (isPaused) {
+                      <button class="mute-btn" (click)="$event.stopPropagation(); toggleMute()">
+                        <span class="material-symbols-rounded">{{ isMuted ? 'volume_off' : 'volume_up' }}</span>
+                      </button>
+                    }
+                  </div>
+                }
               </div>
               <div class="fc-expanded-info">
                 <div class="fc-top-row">
@@ -92,6 +132,10 @@
                     <span class="material-symbols-rounded">chat_bubble</span>
                     <span class="fc-count">{{ formatCount(video.commentCount) }}</span>
                   </button>
+                  <button class="fc-action">
+                    <span class="material-symbols-rounded">visibility</span>
+                    <span class="fc-count">{{ formatCount(video.viewCount || 0) }}</span>
+                  </button>
                   <button class="fc-action" [class.bookmarked]="video.bookmarked" (click)="toggleFollowingBookmark(video)">
                     <span class="material-symbols-rounded">{{ video.bookmarked ? 'bookmark' : 'bookmark_border' }}</span>
                   </button>
@@ -120,25 +164,74 @@
     </div>
     <div class="comments-list">
       @for (comment of comments; track comment.id) {
-        <div class="comment">
-          <div class="comment-avatar">
-            @if (comment.photoURL) {
-              <img [src]="comment.photoURL" alt="">
-            } @else {
-              <span class="material-symbols-rounded">account_circle</span>
+        <div class="comment-thread">
+          <div class="comment">
+            <div class="comment-avatar">
+              @if (comment.photoURL) {
+                <img [src]="comment.photoURL" alt="">
+              } @else {
+                <span class="material-symbols-rounded">account_circle</span>
+              }
+            </div>
+            <div class="comment-body">
+              <div class="comment-top">
+                <a class="comment-user" [routerLink]="['/profile', comment.userId]">{{ comment.username }}</a>
+                <span class="comment-time">{{ getTimeAgo(comment.createdAt) }}</span>
+              </div>
+              <span class="comment-text">{{ comment.text }}</span>
+              <div class="comment-actions">
+                <button class="comment-action-btn" [class.liked]="comment.liked" (click)="toggleCommentLike(comment)">
+                  <span class="material-symbols-rounded">{{ comment.liked ? 'favorite' : 'favorite_border' }}</span>
+                  @if (comment.likeCount) { <span>{{ comment.likeCount }}</span> }
+                </button>
+                <button class="comment-action-btn" (click)="startReply(comment)">
+                  <span class="material-symbols-rounded">reply</span>
+                  <span>Reply</span>
+                </button>
+              </div>
+            </div>
+            @if (comment.userId === authService.currentUser()?.uid) {
+              <button class="comment-delete" (click)="deleteComment(comment)">
+                <span class="material-symbols-rounded">close</span>
+              </button>
             }
           </div>
-          <div class="comment-body">
-            <div class="comment-top">
-              <span class="comment-user">{{ comment.username }}</span>
-              <span class="comment-time">{{ getTimeAgo(comment.createdAt) }}</span>
-            </div>
-            <span class="comment-text">{{ comment.text }}</span>
-          </div>
-          @if (comment.userId === authService.currentUser()?.uid) {
-            <button class="comment-delete" (click)="deleteComment(comment)">
-              <span class="material-symbols-rounded">close</span>
+          @if (comment.replyCount > 0) {
+            <button class="toggle-replies" (click)="comment.showReplies = !comment.showReplies">
+              <span class="material-symbols-rounded">{{ comment.showReplies ? 'expand_less' : 'expand_more' }}</span>
+              {{ comment.showReplies ? 'Hide' : 'View' }} {{ comment.replyCount }} {{ comment.replyCount === 1 ? 'reply' : 'replies' }}
             </button>
+          }
+          @if (comment.showReplies) {
+            @for (reply of comment.replies; track reply.id) {
+              <div class="comment reply">
+                <div class="comment-avatar">
+                  @if (reply.photoURL) {
+                    <img [src]="reply.photoURL" alt="">
+                  } @else {
+                    <span class="material-symbols-rounded">account_circle</span>
+                  }
+                </div>
+                <div class="comment-body">
+                  <div class="comment-top">
+                    <a class="comment-user" [routerLink]="['/profile', reply.userId]">{{ reply.username }}</a>
+                    <span class="comment-time">{{ getTimeAgo(reply.createdAt) }}</span>
+                  </div>
+                  <span class="comment-text">{{ reply.text }}</span>
+                  <div class="comment-actions">
+                    <button class="comment-action-btn" [class.liked]="reply.liked" (click)="toggleCommentLike(reply)">
+                      <span class="material-symbols-rounded">{{ reply.liked ? 'favorite' : 'favorite_border' }}</span>
+                      @if (reply.likeCount) { <span>{{ reply.likeCount }}</span> }
+                    </button>
+                  </div>
+                </div>
+                @if (reply.userId === authService.currentUser()?.uid) {
+                  <button class="comment-delete" (click)="deleteComment(reply)">
+                    <span class="material-symbols-rounded">close</span>
+                  </button>
+                }
+              </div>
+            }
           }
         </div>
       }
@@ -147,10 +240,20 @@
       }
     </div>
     <div class="comment-input">
-      <input type="text" [(ngModel)]="newComment" placeholder="Add a comment..." (keyup.enter)="postComment()" [disabled]="posting">
-      <button (click)="postComment()" [disabled]="!newComment.trim() || posting">
-        <span class="material-symbols-rounded">send</span>
-      </button>
+      @if (replyingTo) {
+        <div class="reply-indicator">
+          <span>Replying to <strong>{{ replyingTo.username }}</strong></span>
+          <button (click)="cancelReply()">
+            <span class="material-symbols-rounded">close</span>
+          </button>
+        </div>
+      }
+      <div class="input-row">
+        <input type="text" [(ngModel)]="newComment" [placeholder]="replyingTo ? 'Write a reply...' : 'Add a comment...'" (keyup.enter)="postComment()" [disabled]="posting">
+        <button (click)="postComment()" [disabled]="!newComment.trim() || posting">
+          <span class="material-symbols-rounded">send</span>
+        </button>
+      </div>
     </div>
   </div>
 }

@@ -11,6 +11,8 @@ interface LocationSuggestion {
   display: string;
   city: string;
   country: string;
+  lat: number;
+  lon: number;
 }
 
 @Component({
@@ -42,6 +44,8 @@ export class Upload implements OnDestroy {
   locationCity = '';
   locationCountry = '';
   locationDisplay = '';
+  locationLat = 0;
+  locationLon = 0;
   locationSuggestions: LocationSuggestion[] = [];
   showLocationDropdown = false;
   isSearchingLocation = false;
@@ -97,7 +101,7 @@ export class Upload implements OnDestroy {
           const city = addr.city || addr.town || addr.village || addr.county || addr.state || '';
           const country = addr.country || '';
           if (!city || !country) return null;
-          return { display: `${city}, ${country}`, city, country };
+          return { display: `${city}, ${country}`, city, country, lat: parseFloat(r.lat), lon: parseFloat(r.lon) };
         })
         .filter((s: any): s is LocationSuggestion => s !== null)
         // Deduplicate by display string
@@ -119,6 +123,8 @@ export class Upload implements OnDestroy {
     this.locationCity = suggestion.city;
     this.locationCountry = suggestion.country;
     this.locationDisplay = suggestion.display;
+    this.locationLat = suggestion.lat;
+    this.locationLon = suggestion.lon;
     this.locationQuery = '';
     this.locationSuggestions = [];
     this.showLocationDropdown = false;
@@ -128,6 +134,8 @@ export class Upload implements OnDestroy {
     this.locationCity = '';
     this.locationCountry = '';
     this.locationDisplay = '';
+    this.locationLat = 0;
+    this.locationLon = 0;
     this.locationQuery = '';
     this.locationSuggestions = [];
     this.showLocationDropdown = false;
@@ -193,6 +201,8 @@ export class Upload implements OnDestroy {
         location: {
           country: this.locationCountry,
           city: this.locationCity,
+          lat: this.locationLat,
+          lon: this.locationLon,
         },
         likeCount: 0,
         commentCount: 0,

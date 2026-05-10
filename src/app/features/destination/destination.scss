@@ -127,7 +127,7 @@
   top: 0;
   left: 0;
   right: 0;
-  bottom: 0;
+  bottom: 56px;
   background: #000;
   z-index: 300;
 
@@ -161,7 +161,7 @@
 }
 
 .viewer-card {
-  height: 100vh;
+  height: calc(100vh - 56px);
   scroll-snap-align: start;
   position: relative;
 
@@ -191,27 +191,27 @@
 
   .creator-avatar {
     flex-shrink: 0;
-    width: 32px;
-    height: 32px;
+    width: 40px;
+    height: 40px;
     text-decoration: none;
 
     img {
-      width: 32px;
-      height: 32px;
+      width: 40px;
+      height: 40px;
       border-radius: 50%;
       object-fit: cover;
       border: 1.5px solid rgba(255, 255, 255, 0.4);
     }
 
     .material-symbols-rounded {
-      font-size: 32px;
+      font-size: 40px;
       color: rgba(255, 255, 255, 0.7);
     }
   }
 
   .creator-name {
     font-weight: 700;
-    font-size: 15px;
+    font-size: 16px;
     color: #fff;
     text-decoration: none;
   }
@@ -222,8 +222,8 @@
   }
 
   .viewer-title {
-    font-size: 14px;
-    font-weight: 400;
+    font-size: 15px;
+    font-weight: 500;
     line-height: 1.3;
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -231,15 +231,26 @@
     overflow: hidden;
   }
 
-  .viewer-location {
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.6);
-    display: flex;
+  .location-pill {
+    display: inline-flex;
     align-items: center;
-    gap: 2px;
+    gap: 4px;
+    padding: 5px 12px 5px 8px;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(4px);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    width: fit-content;
+    transition: background 0.2s;
 
-    .loc-icon {
-      font-size: 14px;
+    &:active { background: rgba(255, 255, 255, 0.2); }
+
+    .location-icon {
+      font-size: 16px;
+      color: #7ec8a4;
     }
   }
 }
@@ -266,7 +277,9 @@
     .material-symbols-rounded {
       color: #fff;
       font-size: 32px;
+      -webkit-text-stroke: 0.5px rgba(0, 0, 0, 0.3);
       text-shadow: 0 0 4px rgba(0, 0, 0, 0.8), 0 2px 4px rgba(0, 0, 0, 0.6);
+      transition: color 0.2s;
     }
 
     &.liked .material-symbols-rounded {
@@ -282,8 +295,7 @@
     .count {
       color: #fff;
       font-size: 12px;
-      font-weight: 600;
-      text-shadow: 0 0 4px rgba(0, 0, 0, 0.8);
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
     }
   }
 }
@@ -310,27 +322,52 @@
   100% { transform: scale(1); opacity: 0; }
 }
 
-.mute-indicator, .pause-indicator {
+.pause-controls {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  pointer-events: none;
-  background: rgba(0, 0, 0, 0.5);
-  border-radius: 50%;
-  width: 56px;
-  height: 56px;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  transition: opacity 0.5s ease-out;
+  gap: 12px;
   z-index: 5;
+  transition: opacity 0.4s ease-out;
+  pointer-events: none;
 
   &.fade-out { opacity: 0; }
 
-  .material-symbols-rounded {
-    font-size: 28px;
-    color: #fff;
+  .pause-indicator {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    .material-symbols-rounded {
+      font-size: 28px;
+      color: #fff;
+    }
+  }
+
+  .mute-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    pointer-events: auto;
+
+    .material-symbols-rounded {
+      font-size: 22px;
+      color: #fff;
+    }
   }
 }
 
@@ -384,11 +421,26 @@
     overflow-y: auto;
     padding: 12px 16px;
 
+    .comment-thread {
+      margin-bottom: 16px;
+    }
+
     .comment {
-      margin-bottom: 18px;
       display: flex;
       align-items: flex-start;
       gap: 12px;
+
+      &.reply {
+        margin-left: 48px;
+        margin-top: 12px;
+
+        .comment-avatar {
+          width: 28px;
+          height: 28px;
+          img { width: 28px; height: 28px; }
+          .material-symbols-rounded { font-size: 28px; }
+        }
+      }
 
       .comment-avatar {
         flex-shrink: 0;
@@ -436,6 +488,37 @@
           font-size: 14px;
           line-height: 1.4;
         }
+
+        .comment-actions {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          margin-top: 6px;
+
+          .comment-action-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 0;
+            color: #666;
+            font-size: 12px;
+            font-family: 'Inter', sans-serif;
+
+            .material-symbols-rounded {
+              font-size: 16px;
+              color: #666;
+              transition: color 0.2s;
+            }
+
+            &.liked .material-symbols-rounded {
+              color: #3891a6;
+              font-variation-settings: 'FILL' 1;
+            }
+          }
+        }
       }
 
       .comment-delete {
@@ -452,6 +535,23 @@
       }
     }
 
+    .toggle-replies {
+      background: none;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-left: 48px;
+      margin-top: 8px;
+      padding: 0;
+      color: #888;
+      font-size: 13px;
+      font-family: 'Inter', sans-serif;
+
+      .material-symbols-rounded { font-size: 18px; color: #888; }
+    }
+
     .no-comments {
       color: #555;
       font-size: 14px;
@@ -461,10 +561,35 @@
   }
 
   .comment-input {
-    display: flex;
-    gap: 8px;
-    padding: 12px 16px;
+    padding: 0;
     border-top: 1px solid #2a2a2a;
+
+    .reply-indicator {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 16px;
+      background: #222;
+      font-size: 13px;
+      color: #888;
+
+      strong { color: #fff; }
+
+      button {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 0;
+        display: flex;
+        .material-symbols-rounded { font-size: 18px; color: #666; }
+      }
+    }
+
+    .input-row {
+      display: flex;
+      gap: 8px;
+      padding: 12px 16px;
+    }
 
     input {
       flex: 1;

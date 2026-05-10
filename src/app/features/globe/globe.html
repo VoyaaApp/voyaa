@@ -38,7 +38,32 @@
   </div>
 
   <!-- Marker preview -->
-  @if (selectedDestination) {
+  @if (selectedCity) {
+    <div class="marker-preview" (click)="exploreDestination()">
+      <div class="mp-thumb">
+        @if (selectedCity.thumbnail) {
+          <img [src]="getThumbUrl(selectedCity.thumbnail)" alt="" loading="lazy">
+        } @else {
+          <div class="mp-placeholder">
+            <span class="material-symbols-rounded">travel_explore</span>
+          </div>
+        }
+      </div>
+      <div class="mp-body">
+        <span class="mp-country">{{ selectedCity.city }}</span>
+        <span class="mp-meta">{{ selectedCity.country }} · {{ formatCount(selectedCity.videoCount) }} videos</span>
+      </div>
+      <button class="mp-fav" [class.active]="isFavourited" (click)="$event.stopPropagation(); toggleFavourite()">
+        <span class="material-symbols-rounded">star</span>
+      </button>
+      <div class="mp-go">
+        <span class="material-symbols-rounded">arrow_forward_ios</span>
+      </div>
+      <button class="mp-close" (click)="$event.stopPropagation(); closePreview()">
+        <span class="material-symbols-rounded">close</span>
+      </button>
+    </div>
+  } @else if (selectedDestination) {
     <div class="marker-preview" (click)="exploreDestination()">
       <div class="mp-thumb">
         @if (selectedDestination.thumbnail) {

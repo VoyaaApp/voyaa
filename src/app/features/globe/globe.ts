@@ -15,6 +15,15 @@ interface Destination {
   thumbnail: string;
 }
 
+interface CityMarker {
+  country: string;
+  city: string;
+  lat: number;
+  lon: number;
+  videoCount: number;
+  thumbnail: string;
+}
+
 @Component({
   selector: 'app-globe',
   imports: [FormsModule],
@@ -28,6 +37,7 @@ export class Globe implements OnInit, AfterViewInit, OnDestroy {
 
   destinations: Destination[] = [];
   filteredDestinations: Destination[] = [];
+  cityMarkers: CityMarker[] = [];
   searchQuery = '';
   formatCount = formatCount;
 
@@ -35,10 +45,11 @@ export class Globe implements OnInit, AfterViewInit, OnDestroy {
   activeRegion = 'All';
 
   selectedDestination: Destination | null = null;
+  selectedCity: CityMarker | null = null;
   isFavourited = false;
 
   private map: any = null;
-  private markers: { marker: any; country: string }[] = [];
+  private markers: { marker: any; country: string; city: string }[] = [];
 
   getThumbUrl(url: string): string {
     if (!url) return '';
@@ -47,17 +58,38 @@ export class Globe implements OnInit, AfterViewInit, OnDestroy {
       .replace(/\.[^.]+$/, '.jpg');
   }
 
+  private async geocodeCity(city: string, country: string): Promise<[number, number] | null> {
+    try {
+      const params = new URLSearchParams({
+        q: `${city}, ${country}`,
+        format: 'json',
+        limit: '1',
+        'accept-language': 'en',
+      });
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
+        headers: { 'User-Agent': 'Voyaa/1.0' },
+      });
+      const results = await res.json();
+      if (results.length > 0) {
+        return [parseFloat(results[0].lat), parseFloat(results[0].lon)];
+      }
+    } catch {}
+    return null;
+  }
+
   async ngOnInit() {
     const snapshot = await getDocs(collection(db, 'videos'));
     const allVideos = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
 
     const countryMap = new Map<string, { videos: any[]; cities: Map<string, number> }>();
+    const cityMap = new Map<string, { country: string; city: string; lat: number; lon: number; videos: any[] }>();
 
     for (const video of allVideos) {
       const country = (video as any).location?.country;
       const city = (video as any).location?.city;
       if (!country) continue;
 
+      // Country-level grouping (for sidebar)
       if (!countryMap.has(country)) {
         countryMap.set(country, { videos: [], cities: new Map() });
       }
@@ -66,6 +98,17 @@ export class Globe implements OnInit, AfterViewInit, OnDestroy {
       if (city) {
         entry.cities.set(city, (entry.cities.get(city) || 0) + 1);
       }
+
+      // City-level grouping (for markers)
+      const cityKey = `${country}|${city || 'Unknown'}`;
+      if (!cityMap.has(cityKey)) {
+        const loc = (video as any).location;
+        const hasCoords = loc?.lat && loc?.lon;
+        const lat = hasCoords ? loc.lat : 0;
+        const lon = hasCoords ? loc.lon : 0;
+        cityMap.set(cityKey, { country, city: city || 'Unknown', lat, lon, videos: [] });
+      }
+      cityMap.get(cityKey)!.videos.push(video);
     }
 
     this.destinations = Array.from(countryMap.entries())
@@ -78,6 +121,34 @@ export class Globe implements OnInit, AfterViewInit, OnDestroy {
         thumbnail: data.videos[0]?.cloudinaryUrl || '',
       }))
       .sort((a, b) => b.videoCount - a.videoCount);
+
+    this.cityMarkers = Array.from(cityMap.values())
+      .map(data => ({
+        country: data.country,
+        city: data.city,
+        lat: data.lat,
+        lon: data.lon,
+        videoCount: data.videos.length,
+        thumbnail: data.videos[0]?.cloudinaryUrl || '',
+      }))
+      .sort((a, b) => b.videoCount - a.videoCount);
+
+    // Geocode cities that lack stored coordinates
+    const toGeocode = this.cityMarkers.filter(cm => !cm.lat && !cm.lon && cm.city !== 'Unknown');
+    for (const cm of toGeocode) {
+      const coords = await this.geocodeCity(cm.city, cm.country);
+      if (coords) {
+        cm.lat = coords[0];
+        cm.lon = coords[1];
+      } else {
+        // Fallback to country centroid
+        const fallback = COUNTRY_COORDS[cm.country];
+        if (fallback) {
+          cm.lat = fallback[0];
+          cm.lon = fallback[1];
+        }
+      }
+    }
 
     this.filteredDestinations = this.destinations;
     this.cdr.detectChanges();
@@ -104,7 +175,7 @@ export class Globe implements OnInit, AfterViewInit, OnDestroy {
       center: [10, 0],
       zoom: 2,
       minZoom: 2,
-      maxZoom: 6,
+      maxZoom: 14,
       zoomControl: false,
       attributionControl: false,
       maxBounds: worldBounds,
@@ -126,39 +197,49 @@ export class Globe implements OnInit, AfterViewInit, OnDestroy {
 
     this.map.on('click', () => this.closePreview());
 
-    for (const dest of this.destinations) {
-      const coords = COUNTRY_COORDS[dest.country];
-      if (!coords) continue;
+    for (const cm of this.cityMarkers) {
+      if (!cm.lat && !cm.lon) continue;
 
-      const size = Math.min(12 + dest.videoCount * 4, 32);
+      const size = Math.min(10 + cm.videoCount * 5, 28);
       const icon = L.divIcon({
         className: 'map-marker',
         html: `<div class="marker-wrapper">
                  <div class="marker-dot" style="width:${size}px;height:${size}px;">
-                   <span class="marker-count">${dest.videoCount}</span>
+                   <span class="marker-count">${cm.videoCount}</span>
                  </div>
-                 <span class="marker-label">${dest.country}</span>
+                 <span class="marker-label">${cm.city}</span>
                </div>`,
         iconSize: [size, size],
         iconAnchor: [size / 2, size / 2],
       });
 
-      const marker = L.marker(coords, { icon }).addTo(this.map);
+      const marker = L.marker([cm.lat, cm.lon], { icon }).addTo(this.map);
       marker.on('click', (e: any) => {
         e.originalEvent?.stopPropagation();
-        this.selectDestination(dest);
+        this.selectCity(cm);
       });
-      this.markers.push({ marker, country: dest.country });
+      this.markers.push({ marker, country: cm.country, city: cm.city });
     }
   }
 
   selectDestination(dest: Destination) {
     this.selectedDestination = dest;
+    this.selectedCity = null;
     this.checkFavouriteStatus(dest.country);
     this.cdr.detectChanges();
     const coords = COUNTRY_COORDS[dest.country];
     if (coords && this.map) {
       this.map.flyTo(coords, 4, { duration: 1 });
+    }
+  }
+
+  selectCity(cm: CityMarker) {
+    this.selectedCity = cm;
+    this.selectedDestination = null;
+    this.checkFavouriteStatus(cm.country);
+    this.cdr.detectChanges();
+    if (this.map) {
+      this.map.flyTo([cm.lat, cm.lon], 6, { duration: 1 });
     }
   }
 
@@ -186,15 +267,17 @@ export class Globe implements OnInit, AfterViewInit, OnDestroy {
   }
 
   closePreview() {
-    if (this.selectedDestination) {
+    if (this.selectedDestination || this.selectedCity) {
       this.selectedDestination = null;
+      this.selectedCity = null;
       this.cdr.detectChanges();
     }
   }
 
   exploreDestination() {
-    if (this.selectedDestination) {
-      this.router.navigate(['/destination', this.selectedDestination.country]);
+    const country = this.selectedCity?.country || this.selectedDestination?.country;
+    if (country) {
+      this.router.navigate(['/destination', country]);
     }
   }
 

@@ -4,6 +4,7 @@ import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { doc, setDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../../core/services/firebase.service';
+import { COUNTRY_COORDS } from '../../shared/data/geo';
 
 @Component({
   selector: 'app-register',
@@ -18,11 +19,13 @@ export class Register {
   email = '';
   password = '';
   username = '';
+  nationality = '';
   errorMessage = '';
   isLoading = false;
   dobDay = '';
   dobMonth = '';
   dobYear = '';
+  countries = Object.keys(COUNTRY_COORDS).sort();
 
   readonly usernameMin = 3;
   readonly usernameMax = 20;
@@ -96,7 +99,7 @@ export class Register {
   }
 
   async register() {
-    if (!this.email || !this.password || !this.username || !this.dobDay || !this.dobMonth || !this.dobYear) {
+    if (!this.email || !this.password || !this.username || !this.nationality || !this.dobDay || !this.dobMonth || !this.dobYear) {
       this.errorMessage = 'All fields are required.';
       return;
     }
@@ -105,8 +108,21 @@ export class Register {
       return;
     }
 
+    // Validate date of birth
+    const day = parseInt(this.dobDay, 10);
+    const month = parseInt(this.dobMonth, 10);
+    const year = parseInt(this.dobYear, 10);
+    if (isNaN(day) || isNaN(month) || isNaN(year) || month < 1 || month > 12 || day < 1 || day > 31 || year < 1900 || year > new Date().getFullYear()) {
+      this.errorMessage = 'Please enter a valid date of birth.';
+      return;
+    }
+    const dob = new Date(year, month - 1, day);
+    if (dob.getFullYear() !== year || dob.getMonth() !== month - 1 || dob.getDate() !== day) {
+      this.errorMessage = 'Please enter a valid date of birth.';
+      return;
+    }
+
     // Check age (must be at least 13)
-    const dob = new Date(+this.dobYear, +this.dobMonth - 1, +this.dobDay);
     const today = new Date();
     let age = today.getFullYear() - dob.getFullYear();
     const monthDiff = today.getMonth() - dob.getMonth();
@@ -143,6 +159,7 @@ export class Register {
       return setDoc(doc(db, 'users', userCredential.user.uid), {
         username: this.username.trim(),
         email: this.email.trim(),
+        nationality: this.nationality,
         dateOfBirth,
         createdAt: new Date().toISOString(),
       });

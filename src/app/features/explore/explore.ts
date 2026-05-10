@@ -23,6 +23,8 @@ interface VideoCard {
   bookmarked: boolean;
   likeCount: number;
   commentCount: number;
+  viewCount?: number;
+  showHeart?: boolean;
 }
 
 @Component({
@@ -42,8 +44,19 @@ export class Explore implements OnInit, AfterViewInit, OnDestroy {
   followedUids = new Set<string>();
   favouriteCountries = new Set<string>();
   searchQuery = '';
+  searchUsers: any[] = [];
+  private cachedUsers: any[] | null = null;
+  private searchDebounce: any = null;
   loading = true;
   formatCount = formatCount;
+  isMuted = true;
+  showPauseIndicator = false;
+  pauseIndicatorFading = false;
+  isPaused = false;
+  private pressTimer: any = null;
+  private tapTimer: any = null;
+  private pendingTap = false;
+  private userPausedVideo: HTMLVideoElement | null = null;
 
   tabs = ['Following', 'Trending', 'Favourited', 'All', 'Asia', 'Europe', 'Americas', 'Africa', 'Middle East', 'Oceania'];
   activeTab = 'Following';
@@ -94,6 +107,7 @@ export class Explore implements OnInit, AfterViewInit, OnDestroy {
         bookmarked: false,
         likeCount: v.likeCount || 0,
         commentCount: v.commentCount || 0,
+        viewCount: v.viewCount || 0,
       }))
       .sort((a, b) => {
         const aTime = a.createdAt?.toMillis?.() || a.createdAt?.seconds * 1000 || 0;
@@ -124,7 +138,10 @@ export class Explore implements OnInit, AfterViewInit, OnDestroy {
     this.loading = false;
     this.cdr.detectChanges();
 
-    setTimeout(() => this.initMiniMap(), 50);
+    setTimeout(() => {
+      this.initMiniMap();
+      this.setupFollowingObserver();
+    }, 50);
   }
 
   ngAfterViewInit() {}
@@ -136,6 +153,8 @@ export class Explore implements OnInit, AfterViewInit, OnDestroy {
     }
     this.followingObserver?.disconnect();
     this.commentsUnsubscribe?.();
+    clearTimeout(this.pressTimer);
+    clearTimeout(this.tapTimer);
   }
 
   /** Small non-interactive map preview with destination dots */
@@ -195,7 +214,33 @@ export class Explore implements OnInit, AfterViewInit, OnDestroy {
 
   onSearch() {
     this.updateDisplayedVideos();
-    this.cdr.detectChanges();
+
+    clearTimeout(this.searchDebounce);
+    const q = this.searchQuery.trim().toLowerCase();
+    if (q.length < 2) {
+      this.searchUsers = [];
+      this.cdr.detectChanges();
+      return;
+    }
+
+    this.searchDebounce = setTimeout(async () => {
+      if (!this.cachedUsers) {
+        const snapshot = await getDocs(collection(db, 'users'));
+        this.cachedUsers = snapshot.docs.map(d => ({ uid: d.id, ...d.data() }));
+      }
+      const query = this.searchQuery.trim().toLowerCase();
+      this.searchUsers = this.cachedUsers
+        .filter((u: any) => u.username?.toLowerCase().includes(query))
+        .slice(0, 5);
+      this.cdr.detectChanges();
+    }, 300);
+  }
+
+  goToProfile(uid: string) {
+    this.searchQuery = '';
+    this.searchUsers = [];
+    this.updateDisplayedVideos();
+    this.router.navigate(['/profile', uid]);
   }
 
   private updateDisplayedVideos() {
@@ -286,6 +331,11 @@ export class Explore implements OnInit, AfterViewInit, OnDestroy {
         visibilityMap.set(video, entry.intersectionRatio);
         if (!entry.isIntersecting) {
           visibilityMap.delete(video);
+          if (video === this.userPausedVideo) {
+            this.userPausedVideo = null;
+            this.isPaused = false;
+            this.showPauseIndicator = false;
+          }
         }
       });
 
@@ -301,10 +351,12 @@ export class Explore implements OnInit, AfterViewInit, OnDestroy {
 
       this.followingVideoElements().forEach(el => {
         const vid = el.nativeElement as HTMLVideoElement;
-        if (vid === bestVideo) {
+        if (vid === bestVideo && vid !== this.userPausedVideo) {
           vid.play().catch(() => {});
         } else {
-          vid.pause();
+          if (vid !== this.userPausedVideo) {
+            vid.pause();
+          }
         }
       });
     }, { threshold: [0, 0.25, 0.5, 0.75, 1] });
@@ -316,10 +368,56 @@ export class Explore implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
-  togglePlayback(event: Event) {
-    const video = (event.currentTarget as HTMLElement).querySelector('video');
-    if (!video) return;
-    video.paused ? video.play() : video.pause();
+  activeVideoEl: HTMLVideoElement | null = null;
+
+  togglePlayback(event: Event, video: VideoCard) {
+    const targetEl = (event.currentTarget as HTMLElement).querySelector('video') as HTMLVideoElement;
+    if (!targetEl) return;
+
+    // Double-tap detection
+    if (this.pendingTap) {
+      clearTimeout(this.tapTimer);
+      this.pendingTap = false;
+      // Double tap = like
+      if (!video.liked) {
+        this.toggleFollowingLike(video);
+      }
+      video.showHeart = true;
+      this.cdr.detectChanges();
+      setTimeout(() => { video.showHeart = false; this.cdr.detectChanges(); }, 800);
+      return;
+    }
+    this.pendingTap = true;
+    this.activeVideoEl = targetEl;
+    this.tapTimer = setTimeout(() => {
+      this.pendingTap = false;
+      const vid = this.activeVideoEl;
+      if (!vid) return;
+      if (vid.paused) {
+        vid.play();
+        this.isPaused = false;
+        this.userPausedVideo = null;
+      } else {
+        vid.pause();
+        this.isPaused = true;
+        this.userPausedVideo = vid;
+      }
+      if (!this.isPaused) {
+        this.showPauseIndicator = true;
+        this.pauseIndicatorFading = false;
+        this.cdr.detectChanges();
+        setTimeout(() => { this.pauseIndicatorFading = true; this.cdr.detectChanges(); }, 400);
+        setTimeout(() => { this.showPauseIndicator = false; this.cdr.detectChanges(); }, 800);
+      } else {
+        this.showPauseIndicator = true;
+        this.pauseIndicatorFading = false;
+        this.cdr.detectChanges();
+      }
+    }, 300);
+  }
+
+  toggleMute() {
+    this.isMuted = !this.isMuted;
   }
 
   openProfile(userId: string) {
@@ -389,6 +487,7 @@ export class Explore implements OnInit, AfterViewInit, OnDestroy {
   comments: any[] = [];
   newComment = '';
   posting = false;
+  replyingTo: any = null;
   private activeVideoId = '';
   private commentsUnsubscribe: (() => void) | null = null;
 
@@ -396,27 +495,81 @@ export class Explore implements OnInit, AfterViewInit, OnDestroy {
     this.activeVideoId = video.id;
     this.showComments = true;
     this.comments = [];
+    this.replyingTo = null;
 
+    const userId = auth.currentUser?.uid;
     const commentsRef = collection(db, 'videos', video.id, 'comments');
     const q = query(commentsRef, orderBy('createdAt', 'asc'));
 
     this.commentsUnsubscribe = onSnapshot(q, async (snapshot) => {
-      this.comments = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      const needPhoto = this.comments.filter(c => !c.photoURL);
+      const allComments: any[] = snapshot.docs.map(d => ({ id: d.id, ...d.data(), liked: false, showReplies: false, replies: [] as any[] }));
+
+      if (userId) {
+        await Promise.all(allComments.map(async (comment) => {
+          const likeDoc = await getDoc(doc(db, 'videos', video.id, 'comments', comment.id, 'likes', userId));
+          comment.liked = likeDoc.exists();
+        }));
+      }
+
+      const needPhoto = allComments.filter(c => !c.photoURL);
       if (needPhoto.length > 0) {
         await Promise.all(needPhoto.map(async (comment) => {
           const uDoc = await getDoc(doc(db, 'users', comment.userId));
           comment.photoURL = uDoc.exists() ? uDoc.data()['photoURL'] || '' : '';
         }));
       }
+
+      const topLevel = allComments.filter(c => !c.parentId);
+      const replies = allComments.filter(c => c.parentId);
+      const prevShowState = new Map(this.comments.map(c => [c.id, c.showReplies]));
+
+      topLevel.forEach(c => {
+        c.replies = replies.filter(r => r.parentId === c.id);
+        c.replyCount = c.replies.length;
+        c.showReplies = prevShowState.get(c.id) || false;
+      });
+
+      this.comments = topLevel;
       this.cdr.detectChanges();
     });
   }
 
   closeComments() {
     this.showComments = false;
+    this.replyingTo = null;
     this.commentsUnsubscribe?.();
     this.commentsUnsubscribe = null;
+  }
+
+  startReply(comment: any) {
+    this.replyingTo = comment;
+    this.newComment = '';
+  }
+
+  cancelReply() {
+    this.replyingTo = null;
+    this.newComment = '';
+  }
+
+  async toggleCommentLike(comment: any) {
+    const userId = auth.currentUser?.uid;
+    if (!userId) return;
+
+    const likeRef = doc(db, 'videos', this.activeVideoId, 'comments', comment.id, 'likes', userId);
+    const commentRef = doc(db, 'videos', this.activeVideoId, 'comments', comment.id);
+
+    if (comment.liked) {
+      comment.liked = false;
+      comment.likeCount = (comment.likeCount || 1) - 1;
+      await deleteDoc(likeRef);
+      await updateDoc(commentRef, { likeCount: increment(-1) });
+    } else {
+      comment.liked = true;
+      comment.likeCount = (comment.likeCount || 0) + 1;
+      await setDoc(likeRef, { userId, createdAt: new Date().toISOString() });
+      await updateDoc(commentRef, { likeCount: increment(1) });
+    }
+    this.cdr.detectChanges();
   }
 
   async postComment() {
@@ -427,22 +580,31 @@ export class Explore implements OnInit, AfterViewInit, OnDestroy {
     this.posting = true;
     const text = this.newComment.trim();
     this.newComment = '';
+    const parentId = this.replyingTo?.id || null;
+    this.replyingTo = null;
     this.cdr.detectChanges();
 
     const userDoc = await getDoc(doc(db, 'users', userId));
     const username = userDoc.exists() ? userDoc.data()['username'] : 'Anonymous';
     const photoURL = userDoc.exists() ? userDoc.data()['photoURL'] || '' : '';
 
-    await addDoc(collection(db, 'videos', this.activeVideoId, 'comments'), {
-      userId, username, photoURL,
-      text,
+    const commentData: any = {
+      userId, username, photoURL, text,
       createdAt: new Date().toISOString(),
-    });
+      likeCount: 0,
+    };
+    if (parentId) commentData.parentId = parentId;
+    await addDoc(collection(db, 'videos', this.activeVideoId, 'comments'), commentData);
 
     await updateDoc(doc(db, 'videos', this.activeVideoId), { commentCount: increment(1) });
 
     const video = this.allVideoCards.find(v => v.id === this.activeVideoId);
     if (video) video.commentCount++;
+
+    if (parentId) {
+      const parent = this.comments.find(c => c.id === parentId);
+      if (parent) parent.showReplies = true;
+    }
 
     if (video && video.userId !== userId) {
       await addDoc(collection(db, 'users', video.userId, 'notifications'), {
@@ -452,7 +614,6 @@ export class Explore implements OnInit, AfterViewInit, OnDestroy {
       });
     }
 
-    this.newComment = '';
     this.posting = false;
     this.cdr.detectChanges();
   }
@@ -460,10 +621,21 @@ export class Explore implements OnInit, AfterViewInit, OnDestroy {
   async deleteComment(comment: any) {
     const userId = auth.currentUser?.uid;
     if (comment.userId !== userId) return;
+
     await deleteDoc(doc(db, 'videos', this.activeVideoId, 'comments', comment.id));
-    await updateDoc(doc(db, 'videos', this.activeVideoId), { commentCount: increment(-1) });
+
+    if (!comment.parentId && comment.replies?.length) {
+      await Promise.all(comment.replies.map((r: any) =>
+        deleteDoc(doc(db, 'videos', this.activeVideoId, 'comments', r.id))
+      ));
+    }
+
+    const deleteCount = comment.parentId ? 1 : 1 + (comment.replies?.length || 0);
+    await updateDoc(doc(db, 'videos', this.activeVideoId), { commentCount: increment(-deleteCount) });
+
     const video = this.allVideoCards.find(v => v.id === this.activeVideoId);
-    if (video) video.commentCount--;
+    if (video) video.commentCount -= deleteCount;
+
     this.cdr.detectChanges();
   }
 }

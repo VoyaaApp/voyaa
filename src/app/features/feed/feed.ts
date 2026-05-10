@@ -243,6 +243,7 @@ export class Feed implements AfterViewInit, OnDestroy {
   comments: any[] = [];
   newComment = '';
   posting = false;
+  replyingTo: any = null;
   private activeVideoId = '';
   private commentsUnsubscribe: (() => void) | null = null;
 
@@ -250,31 +251,88 @@ export class Feed implements AfterViewInit, OnDestroy {
     this.activeVideoId = video.id;
     this.showComments = true;
     this.comments = [];
+    this.replyingTo = null;
 
-    // Real-time listener for comments
+    const userId = this.authService.currentUser()?.uid;
     const commentsRef = collection(db, 'videos', video.id, 'comments');
     const q = query(commentsRef, orderBy('createdAt', 'asc'));
 
     this.commentsUnsubscribe = onSnapshot(q, async (snapshot) => {
-      this.comments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      // Batch enrich comments missing photoURL
-      const needPhoto = this.comments.filter(c => !c.photoURL);
+      const allComments: any[] = snapshot.docs.map(d => ({ id: d.id, ...d.data(), liked: false, showReplies: false, replies: [] as any[] }));
+
+      // Check which comments the user has liked
+      if (userId) {
+        await Promise.all(allComments.map(async (comment) => {
+          const likeDoc = await getDoc(doc(db, 'videos', video.id, 'comments', comment.id, 'likes', userId));
+          comment.liked = likeDoc.exists();
+        }));
+      }
+
+      // Enrich missing photoURLs
+      const needPhoto = allComments.filter(c => !c.photoURL);
       if (needPhoto.length > 0) {
         await Promise.all(needPhoto.map(async (comment) => {
           const uDoc = await getDoc(doc(db, 'users', comment.userId));
           comment.photoURL = uDoc.exists() ? uDoc.data()['photoURL'] || '' : '';
         }));
       }
+
+      // Separate top-level and replies
+      const topLevel = allComments.filter(c => !c.parentId);
+      const replies = allComments.filter(c => c.parentId);
+
+      // Preserve showReplies state from previous render
+      const prevShowState = new Map(this.comments.map(c => [c.id, c.showReplies]));
+
+      topLevel.forEach(c => {
+        c.replies = replies.filter(r => r.parentId === c.id);
+        c.replyCount = c.replies.length;
+        c.showReplies = prevShowState.get(c.id) || false;
+      });
+
+      this.comments = topLevel;
       this.cdr.detectChanges();
     });
   }
 
   closeComments() {
     this.showComments = false;
+    this.replyingTo = null;
     if (this.commentsUnsubscribe) {
       this.commentsUnsubscribe();
       this.commentsUnsubscribe = null;
     }
+  }
+
+  startReply(comment: any) {
+    this.replyingTo = comment;
+    this.newComment = '';
+  }
+
+  cancelReply() {
+    this.replyingTo = null;
+    this.newComment = '';
+  }
+
+  async toggleCommentLike(comment: any) {
+    const userId = this.authService.currentUser()?.uid;
+    if (!userId) return;
+
+    const likeRef = doc(db, 'videos', this.activeVideoId, 'comments', comment.id, 'likes', userId);
+    const commentRef = doc(db, 'videos', this.activeVideoId, 'comments', comment.id);
+
+    if (comment.liked) {
+      comment.liked = false;
+      comment.likeCount = (comment.likeCount || 1) - 1;
+      await deleteDoc(likeRef);
+      await updateDoc(commentRef, { likeCount: increment(-1) });
+    } else {
+      comment.liked = true;
+      comment.likeCount = (comment.likeCount || 0) + 1;
+      await setDoc(likeRef, { userId, createdAt: new Date().toISOString() });
+      await updateDoc(commentRef, { likeCount: increment(1) });
+    }
+    this.cdr.detectChanges();
   }
 
   async postComment() {
@@ -286,21 +344,27 @@ export class Feed implements AfterViewInit, OnDestroy {
     this.posting = true;
     const text = this.newComment.trim();
     this.newComment = '';
+    const parentId = this.replyingTo?.id || null;
+    this.replyingTo = null;
     this.cdr.detectChanges();
 
-    // Get username from Firestore user profile
     const userDoc = await getDoc(doc(db, 'users', userId));
     const username = userDoc.exists() ? userDoc.data()['username'] : 'Anonymous';
     const photoURL = userDoc.exists() ? userDoc.data()['photoURL'] || '' : '';
 
     const commentsRef = collection(db, 'videos', this.activeVideoId, 'comments');
-    await addDoc(commentsRef, {
+    const commentData: any = {
       userId,
       username,
       photoURL,
       text,
       createdAt: new Date().toISOString(),
-    });
+      likeCount: 0,
+    };
+    if (parentId) {
+      commentData.parentId = parentId;
+    }
+    await addDoc(commentsRef, commentData);
 
     // Update comment count on video
     const videoRef = doc(db, 'videos', this.activeVideoId);
@@ -309,6 +373,12 @@ export class Feed implements AfterViewInit, OnDestroy {
     // Update local count
     const video = this.videos.find(v => v.id === this.activeVideoId);
     if (video) video.commentCount++;
+
+    // Expand replies if this was a reply
+    if (parentId) {
+      const parent = this.comments.find(c => c.id === parentId);
+      if (parent) parent.showReplies = true;
+    }
 
     // Send notification
     if (video && video.userId !== userId) {
@@ -324,7 +394,6 @@ export class Feed implements AfterViewInit, OnDestroy {
       });
     }
 
-    this.newComment = '';
     this.posting = false;
     this.cdr.detectChanges();
   }
@@ -337,11 +406,19 @@ export class Feed implements AfterViewInit, OnDestroy {
     this.confirmAction = async () => {
       await deleteDoc(doc(db, 'videos', this.activeVideoId, 'comments', comment.id));
 
+      // Also delete replies if it's a top-level comment
+      if (!comment.parentId && comment.replies?.length) {
+        await Promise.all(comment.replies.map((r: any) =>
+          deleteDoc(doc(db, 'videos', this.activeVideoId, 'comments', r.id))
+        ));
+      }
+
       const videoRef = doc(db, 'videos', this.activeVideoId);
-      await updateDoc(videoRef, { commentCount: increment(-1) });
+      const deleteCount = comment.parentId ? 1 : 1 + (comment.replies?.length || 0);
+      await updateDoc(videoRef, { commentCount: increment(-deleteCount) });
 
       const video = this.videos.find(v => v.id === this.activeVideoId);
-      if (video) video.commentCount--;
+      if (video) video.commentCount -= deleteCount;
 
       this.cdr.detectChanges();
     };

@@ -108,6 +108,30 @@ export const COUNTRY_FLAGS: Record<string, string> = {
   'Venezuela': '🇻🇪', 'Vietnam': '🇻🇳', 'Wales': '🏴󠁧󠁢󠁷󠁬󠁳󠁿', 'Zimbabwe': '🇿🇼',
 };
 
+export const COUNTRY_CODES: Record<string, string> = {
+  'Afghanistan': 'af', 'Albania': 'al', 'Algeria': 'dz', 'Argentina': 'ar',
+  'Australia': 'au', 'Austria': 'at', 'Bahamas': 'bs', 'Bali': 'id',
+  'Bangladesh': 'bd', 'Belgium': 'be', 'Brazil': 'br', 'Cambodia': 'kh',
+  'Canada': 'ca', 'Chile': 'cl', 'China': 'cn', 'Colombia': 'co',
+  'Costa Rica': 'cr', 'Croatia': 'hr', 'Cuba': 'cu', 'Czech Republic': 'cz',
+  'Denmark': 'dk', 'Dominican Republic': 'do', 'Ecuador': 'ec', 'Egypt': 'eg',
+  'England': 'gb-eng', 'Ethiopia': 'et', 'Fiji': 'fj', 'Finland': 'fi',
+  'France': 'fr', 'Germany': 'de', 'Greece': 'gr', 'Hungary': 'hu',
+  'Iceland': 'is', 'India': 'in', 'Indonesia': 'id', 'Ireland': 'ie',
+  'Israel': 'il', 'Italy': 'it', 'Jamaica': 'jm', 'Japan': 'jp',
+  'Jordan': 'jo', 'Kenya': 'ke', 'Laos': 'la', 'Malaysia': 'my',
+  'Maldives': 'mv', 'Mexico': 'mx', 'Morocco': 'ma', 'Myanmar': 'mm',
+  'Nepal': 'np', 'Netherlands': 'nl', 'New Zealand': 'nz', 'Nigeria': 'ng',
+  'Norway': 'no', 'Pakistan': 'pk', 'Panama': 'pa', 'Peru': 'pe',
+  'Philippines': 'ph', 'Poland': 'pl', 'Portugal': 'pt', 'Romania': 'ro',
+  'Russia': 'ru', 'Saudi Arabia': 'sa', 'Scotland': 'gb-sct', 'Singapore': 'sg',
+  'South Africa': 'za', 'South Korea': 'kr', 'Spain': 'es', 'Sri Lanka': 'lk',
+  'Sweden': 'se', 'Switzerland': 'ch', 'Tanzania': 'tz', 'Thailand': 'th',
+  'Turkey': 'tr', 'UAE': 'ae', 'Uganda': 'ug', 'Ukraine': 'ua',
+  'United Kingdom': 'gb', 'United States': 'us', 'Uruguay': 'uy',
+  'Venezuela': 've', 'Vietnam': 'vn', 'Wales': 'gb-wls', 'Zimbabwe': 'zw',
+};
+
 export const REGION_BOUNDS: Record<string, [[number, number], [number, number]]> = {
   'Asia': [[0, 60], [55, 150]],
   'Europe': [[35, -12], [70, 45]],
