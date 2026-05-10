@@ -59,7 +59,7 @@ export class Chat implements OnInit, OnDestroy, AfterViewChecked {
   }
 
   goBack() {
-    this.router.navigate(['/activity'], { queryParams: { tab: 'messages' } });
+    this.router.navigate(['/activity'], { queryParams: { tab: 'messages' }, replaceUrl: true });
   }
 
   goToProfile() {

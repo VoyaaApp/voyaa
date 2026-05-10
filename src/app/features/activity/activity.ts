@@ -46,7 +46,14 @@ export class Activity implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);
 
   goBack() {
-    this.location.back();
+    // If we arrived via query param (from chat back button), go to explore
+    // to avoid activity/messages navigation loop
+    const tab = this.route.snapshot.queryParamMap.get('tab');
+    if (tab) {
+      this.router.navigate(['/explore'], { replaceUrl: true });
+    } else {
+      this.location.back();
+    }
   }
 
   async ngOnInit() {
