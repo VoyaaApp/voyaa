@@ -1,0 +1,106 @@
+<div class="image-editor">
+
+  <div class="editor-preview"
+       (pointerdown)="onCropPointerDown($event)"
+       (pointermove)="onCropPointerMove($event)"
+       (pointerup)="onCropPointerUp()">
+    <canvas #editorCanvas></canvas>
+  </div>
+
+  <canvas #filterCanvas class="filter-canvas-hidden"></canvas>
+
+  <div class="editor-tools">
+
+    <div class="tool-tabs">
+      <button class="tool-tab" [class.active]="activeTab === 'crop'" (click)="switchTab('crop')">
+        <span class="material-symbols-rounded">crop</span>
+        <span class="tab-label">Crop</span>
+      </button>
+      <button class="tool-tab" [class.active]="activeTab === 'filters'" (click)="switchTab('filters')">
+        <span class="material-symbols-rounded">auto_awesome</span>
+        <span class="tab-label">Filters</span>
+      </button>
+      <button class="tool-tab" [class.active]="activeTab === 'adjust'" (click)="switchTab('adjust')">
+        <span class="material-symbols-rounded">tune</span>
+        <span class="tab-label">Adjust</span>
+      </button>
+      <button class="tool-tab" [class.active]="activeTab === 'rotate'" (click)="switchTab('rotate')">
+        <span class="material-symbols-rounded">rotate_right</span>
+        <span class="tab-label">Rotate</span>
+      </button>
+    </div>
+
+    <!-- Crop controls -->
+    @if (activeTab === 'crop') {
+      <div class="tool-panel">
+        <div class="aspect-ratios">
+          @for (ar of aspectRatios; track ar.label) {
+            <button class="aspect-btn" [class.active]="activeAspect === ar.value" (click)="setAspectRatio(ar.value)">
+              {{ ar.label }}
+            </button>
+          }
+          <button class="aspect-btn reset-crop" (click)="resetCrop()">
+            <span class="material-symbols-rounded" style="font-size: 16px;">restart_alt</span>
+            Reset
+          </button>
+        </div>
+        <p class="tool-hint">Drag corners to resize, drag inside to move</p>
+      </div>
+    }
+
+    <!-- Filters -->
+    @if (activeTab === 'filters') {
+      <div class="tool-panel">
+        <div class="filter-grid">
+          @for (f of filters; track f.name; let i = $index) {
+            <button class="filter-item" [class.active]="editState.filter === f.filter" (click)="selectFilter(f.filter)">
+              <span class="filter-name">{{ f.name }}</span>
+            </button>
+          }
+        </div>
+      </div>
+    }
+
+    <!-- Adjust -->
+    @if (activeTab === 'adjust') {
+      <div class="tool-panel adjust-panel">
+        <div class="slider-group">
+          <label>
+            <span class="material-symbols-rounded">brightness_6</span>
+            Brightness
+          </label>
+          <input type="range" min="0.5" max="1.5" step="0.01" [(ngModel)]="editState.brightness" (input)="onAdjust()">
+          <span class="slider-value">{{ (editState.brightness * 100 - 100).toFixed(0) }}</span>
+        </div>
+        <div class="slider-group">
+          <label>
+            <span class="material-symbols-rounded">contrast</span>
+            Contrast
+          </label>
+          <input type="range" min="0.5" max="1.5" step="0.01" [(ngModel)]="editState.contrast" (input)="onAdjust()">
+          <span class="slider-value">{{ (editState.contrast * 100 - 100).toFixed(0) }}</span>
+        </div>
+        <div class="slider-group">
+          <label>
+            <span class="material-symbols-rounded">palette</span>
+            Saturation
+          </label>
+          <input type="range" min="0" max="2" step="0.01" [(ngModel)]="editState.saturation" (input)="onAdjust()">
+          <span class="slider-value">{{ (editState.saturation * 100 - 100).toFixed(0) }}</span>
+        </div>
+      </div>
+    }
+
+    <!-- Rotate just triggers on tab click -->
+    @if (activeTab === 'rotate') {
+      <div class="tool-panel">
+        <p class="tool-hint">Tap to rotate 90°. Current: {{ editState.rotation }}°</p>
+        <button class="rotate-btn" (click)="rotate()">
+          <span class="material-symbols-rounded">rotate_right</span>
+          Rotate 90°
+        </button>
+      </div>
+    }
+
+  </div>
+</div>

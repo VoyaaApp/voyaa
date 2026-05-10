@@ -1,12 +1,10 @@
-import { Component, inject, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
-import { Location } from '@angular/common';
-import { Router, ActivatedRoute } from '@angular/router';
-import { collection, getDocs, orderBy, query, doc, writeBatch, where, onSnapshot, getDoc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { Component, OnInit, OnDestroy, inject, ChangeDetectorRef } from '@angular/core';
+import { Router } from '@angular/router';
+import { FormsModule } from '@angular/forms';
+import { collection, query, where, orderBy, onSnapshot, getDocs, doc, getDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../../core/services/firebase.service';
 import { AuthService } from '../../core/services/auth.service';
-import { timeAgo } from '../../shared/utils/time';
-import { RouterLink } from '@angular/router';
-import { FormsModule } from '@angular/forms';
+import { Location } from '@angular/common';
 
 interface Conversation {
   id: string;
@@ -19,97 +17,37 @@ interface Conversation {
 }
 
 @Component({
-  selector: 'app-activity',
-  imports: [RouterLink, FormsModule],
-  templateUrl: './activity.html',
-  styleUrl: './activity.scss',
+  selector: 'app-messages',
+  imports: [FormsModule],
+  templateUrl: './messages.html',
+  styleUrl: './messages.scss',
 })
-export class Activity implements OnInit, OnDestroy {
-  activeTab: 'activity' | 'messages' = 'activity';
-  notifications: any[] = [];
-  loading = true;
-  timeAgo = timeAgo;
+export class Messages implements OnInit, OnDestroy {
+  private router = inject(Router);
+  private cdr = inject(ChangeDetectorRef);
+  private location = inject(Location);
+  authService = inject(AuthService);
 
-  // Messages
   conversations: Conversation[] = [];
-  messagesLoading = true;
+  loading = true;
   searchQuery = '';
   searchResults: any[] = [];
   showSearch = false;
   private searchTimer: any = null;
-  private unsubMessages: (() => void) | null = null;
+  private unsubscribe: (() => void) | null = null;
 
-  authService = inject(AuthService);
-  private cdr = inject(ChangeDetectorRef);
-  private location = inject(Location);
-  private router = inject(Router);
-  private route = inject(ActivatedRoute);
-
-  goBack() {
-    this.location.back();
-  }
-
-  async ngOnInit() {
-    const tab = this.route.snapshot.queryParamMap.get('tab');
-    if (tab === 'messages') this.activeTab = 'messages';
-    await this.loadNotifications();
+  ngOnInit() {
     this.loadConversations();
   }
 
   ngOnDestroy() {
-    this.unsubMessages?.();
+    if (this.unsubscribe) this.unsubscribe();
     clearTimeout(this.searchTimer);
   }
 
-  switchTab(tab: 'activity' | 'messages') {
-    this.activeTab = tab;
+  goBack() {
+    this.location.back();
   }
-
-  // ── Notifications ──
-
-  private async loadNotifications() {
-    const uid = this.authService.currentUser()?.uid;
-    if (!uid) return;
-
-    const q = query(
-      collection(db, 'users', uid, 'notifications'),
-      orderBy('createdAt', 'desc')
-    );
-    const snapshot = await getDocs(q);
-    this.notifications = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-
-    const unread = this.notifications.filter(n => !n.read);
-    if (unread.length > 0) {
-      const batch = writeBatch(db);
-      for (const notif of unread) {
-        batch.update(doc(db, 'users', uid, 'notifications', notif.id), { read: true });
-      }
-      await batch.commit();
-    }
-
-    this.loading = false;
-    this.cdr.detectChanges();
-  }
-
-  getIcon(type: string): string {
-    switch (type) {
-      case 'like': return 'favorite';
-      case 'follow': return 'person_add';
-      case 'comment': return 'chat_bubble';
-      default: return 'notifications';
-    }
-  }
-
-  getMessage(notif: any): string {
-    switch (notif.type) {
-      case 'like': return `liked your post`;
-      case 'follow': return `started following you`;
-      case 'comment': return `commented on your post`;
-      default: return 'interacted with you';
-    }
-  }
-
-  // ── Messages ──
 
   private loadConversations() {
     const uid = auth.currentUser?.uid;
@@ -117,16 +55,18 @@ export class Activity implements OnInit, OnDestroy {
 
     const q = query(
       collection(db, 'conversations'),
-      where('participants', 'array-contains', uid)
+      where('participants', 'array-contains', uid),
+      orderBy('updatedAt', 'desc')
     );
 
-    this.unsubMessages = onSnapshot(q, async (snapshot) => {
+    this.unsubscribe = onSnapshot(q, async (snapshot) => {
       const convos: Conversation[] = [];
 
       for (const docSnap of snapshot.docs) {
         const data = docSnap.data();
         const recipientId = (data['participants'] as string[]).find(id => id !== uid)!;
 
+        // Get recipient user info
         let recipientName = 'Unknown';
         let recipientAvatar = '';
         try {
@@ -138,6 +78,7 @@ export class Activity implements OnInit, OnDestroy {
           }
         } catch {}
 
+        // Count unread
         const unreadCount = data['unreadCount_' + uid] || 0;
 
         convos.push({
@@ -151,19 +92,8 @@ export class Activity implements OnInit, OnDestroy {
         });
       }
 
-      // Sort by most recent
-      convos.sort((a, b) => {
-        const aMs = a.lastMessageTime?.toMillis?.() || a.lastMessageTime?.seconds * 1000 || 0;
-        const bMs = b.lastMessageTime?.toMillis?.() || b.lastMessageTime?.seconds * 1000 || 0;
-        return bMs - aMs;
-      });
-
       this.conversations = convos;
-      this.messagesLoading = false;
-      this.cdr.detectChanges();
-    }, () => {
-      // If query fails (e.g. no index), still stop loading
-      this.messagesLoading = false;
+      this.loading = false;
       this.cdr.detectChanges();
     });
   }
@@ -194,12 +124,14 @@ export class Activity implements OnInit, OnDestroy {
     const uid = auth.currentUser?.uid;
     if (!uid) return;
 
+    // Check for existing conversation
     const existing = this.conversations.find(c => c.recipientId === recipientId);
     if (existing) {
       this.router.navigate(['/messages', existing.id]);
       return;
     }
 
+    // Also check Firestore for conversations not yet loaded
     const q = query(
       collection(db, 'conversations'),
       where('participants', 'array-contains', uid)
@@ -215,6 +147,7 @@ export class Activity implements OnInit, OnDestroy {
       return;
     }
 
+    // Create new conversation
     const convoRef = await addDoc(collection(db, 'conversations'), {
       participants: [uid, recipientId],
       lastMessage: '',
@@ -230,7 +163,7 @@ export class Activity implements OnInit, OnDestroy {
     this.router.navigate(['/messages', convo.id]);
   }
 
-  msgTimeAgo(timestamp: any): string {
+  timeAgo(timestamp: any): string {
     if (!timestamp) return '';
     const ms = timestamp?.toMillis?.() || timestamp?.seconds * 1000 || (typeof timestamp === 'string' ? new Date(timestamp).getTime() : 0);
     if (!ms) return '';

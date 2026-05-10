@@ -3,6 +3,11 @@
   flex-direction: column;
   height: calc(100vh - 56px);
   overflow: hidden;
+
+  @media (min-width: 768px) {
+    height: 100vh;
+    margin-left: 220px;
+  }
 }
 
 .profile-header {
@@ -356,7 +361,7 @@
       gap: 8px;
 
       .upload-btn {
-        flex: 1;
+        width: 100%;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -369,10 +374,54 @@
         font-size: 13px;
         font-weight: 600;
         font-family: 'Inter', sans-serif;
+        border: none;
+        cursor: pointer;
 
         .material-symbols-rounded {
           font-size: 18px;
           color: #fff;
+        }
+      }
+
+      .create-menu-wrapper {
+        flex: 1;
+        position: relative;
+        display: flex;
+      }
+
+      .create-menu-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 99;
+      }
+
+      .create-menu {
+        position: absolute;
+        top: 44px;
+        right: 0;
+        background: #1a1a1a;
+        border-radius: 12px;
+        padding: 6px 0;
+        min-width: 170px;
+        z-index: 100;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+
+        a {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 12px 16px;
+          color: #fff;
+          text-decoration: none;
+          font-size: 14px;
+          transition: background 0.15s;
+
+          &:hover { background: rgba(255, 255, 255, 0.06); }
+
+          .material-symbols-rounded {
+            font-size: 20px;
+            color: #3891a6;
+          }
         }
       }
 
@@ -414,6 +463,23 @@
         &:hover {
           opacity: 0.9;
         }
+      }
+
+      .message-btn {
+        padding: 8px 14px;
+        border-radius: 8px;
+        border: 1px solid #333;
+        background: #1a1a1a;
+        color: #ccc;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.2s;
+
+        .material-symbols-rounded { font-size: 20px; }
+
+        &:hover { background: #2a2a2a; }
       }
 
       .menu-wrapper {
@@ -642,6 +708,19 @@
           color: #fff;
           font-size: 32px;
         }
+
+        &.gallery-badge {
+          inset: auto;
+          top: 6px;
+          right: 6px;
+          background: none;
+          opacity: 1;
+
+          .material-symbols-rounded {
+            font-size: 20px;
+            filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.6));
+          }
+        }
       }
 
       &:hover .grid-overlay {
@@ -773,6 +852,10 @@
   bottom: 0;
   background: rgba(0, 0, 0, 0.5);
   z-index: 200;
+
+  @media (min-width: 768px) {
+    left: 220px;
+  }
 }
 
 .edit-panel {
@@ -783,6 +866,11 @@
   background: #1a1a1a;
   border-radius: 16px 16px 0 0;
   z-index: 201;
+
+  @media (min-width: 768px) {
+    bottom: 0;
+    left: 220px;
+  }
   padding: 20px;
   animation: slideUp 0.3s ease-out;
 
@@ -911,6 +999,11 @@
   z-index: 200;
   background: #000;
 
+  @media (min-width: 768px) {
+    left: 220px;
+    bottom: 0;
+  }
+
   .viewer-back {
     position: absolute;
     top: 12px;
@@ -940,9 +1033,13 @@
   }
 
   .viewer-card {
-    height: calc(100vh - 56px);
+    height: calc(100dvh - 56px);
     scroll-snap-align: start;
     position: relative;
+
+    @media (min-width: 768px) {
+      height: 100vh;
+    }
 
     video {
       width: 100%;
@@ -1136,6 +1233,10 @@
   inset: 0;
   background: rgba(0, 0, 0, 0.3);
   z-index: 300;
+
+  @media (min-width: 768px) {
+    left: 220px;
+  }
 }
 
 .comments-panel {
@@ -1150,6 +1251,10 @@
   display: flex;
   flex-direction: column;
   animation: slideUp 0.3s ease-out;
+
+  @media (min-width: 768px) {
+    left: 220px;
+  }
 
   .comments-header {
     display: flex;

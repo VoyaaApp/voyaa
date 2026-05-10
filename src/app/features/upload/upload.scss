@@ -6,6 +6,11 @@
   flex-direction: column;
   align-items: center;
 
+  @media (min-width: 768px) {
+    min-height: 100dvh;
+    margin-left: 220px;
+  }
+
   .upload-header {
     width: 100%;
     display: flex;

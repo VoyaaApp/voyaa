@@ -2,6 +2,11 @@
   height: calc(100vh - 56px);
   overflow-y: auto;
   background: #0a0a0a;
+
+  @media (min-width: 768px) {
+    height: 100vh;
+    margin-left: 220px;
+  }
 }
 
 .dest-header {
@@ -131,6 +136,11 @@
   background: #000;
   z-index: 300;
 
+  @media (min-width: 768px) {
+    left: 220px;
+    bottom: 0;
+  }
+
   .viewer-close {
     position: absolute;
     top: 16px;
@@ -161,8 +171,12 @@
 }
 
 .viewer-card {
-  height: calc(100vh - 56px);
+    height: calc(100dvh - 56px);
   scroll-snap-align: start;
+
+  @media (min-width: 768px) {
+    height: 100vh;
+  }
   position: relative;
 
   video {
@@ -380,6 +394,10 @@
   bottom: 0;
   background: rgba(0, 0, 0, 0.5);
   z-index: 400;
+
+  @media (min-width: 768px) {
+    left: 220px;
+  }
 }
 
 .comments-panel {
@@ -394,6 +412,10 @@
   display: flex;
   flex-direction: column;
   animation: slideUp 0.3s ease-out;
+
+  @media (min-width: 768px) {
+    left: 220px;
+  }
 
   .comments-header {
     display: flex;

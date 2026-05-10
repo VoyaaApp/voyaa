@@ -101,7 +101,7 @@
           <h2 class="username">{{ profileUser.username }}</h2>
           <div class="stats-row">
             <div class="stat">
-              <span class="stat-number">{{ videos.length }}</span>
+              <span class="stat-number">{{ gridItems.length }}</span>
               <span class="stat-label">posts</span>
             </div>
             <div class="stat clickable" (click)="openUserList('followers')">
@@ -132,7 +132,7 @@
           <span class="ts-dot">·</span>
           <span class="ts-item"><strong>{{ travelStats.continents }}</strong> {{ travelStats.continents === 1 ? 'continent' : 'continents' }}</span>
           <span class="ts-dot">·</span>
-          <span class="ts-item"><strong>{{ travelStats.videos }}</strong> {{ travelStats.videos === 1 ? 'video' : 'videos' }}</span>
+          <span class="ts-item"><strong>{{ travelStats.videos }}</strong> {{ travelStats.videos === 1 ? 'post' : 'posts' }}</span>
         </div>
       </div>
       @if (badges.length > 0) {
@@ -165,10 +165,25 @@
       @if (isOwnProfile) {
         <div class="profile-actions">
           <button class="edit-btn" (click)="openEdit()">Edit Profile</button>
-          <a class="upload-btn" routerLink="/upload">
-            <span class="material-symbols-rounded">add_circle</span>
-            Upload
-          </a>
+          <div class="create-menu-wrapper">
+            <button class="upload-btn" (click)="showCreateMenu = !showCreateMenu">
+              <span class="material-symbols-rounded">add_circle</span>
+              Upload
+            </button>
+            @if (showCreateMenu) {
+              <div class="create-menu-backdrop" (click)="showCreateMenu = false"></div>
+              <div class="create-menu">
+                <a routerLink="/upload" (click)="showCreateMenu = false">
+                  <span class="material-symbols-rounded">videocam</span>
+                  Post a Video
+                </a>
+                <a routerLink="/upload-image" (click)="showCreateMenu = false">
+                  <span class="material-symbols-rounded">photo_library</span>
+                  Post Photos
+                </a>
+              </div>
+            }
+          </div>
           <div class="menu-wrapper">
             <button class="menu-btn" (click)="toggleMenu()">
               <span class="material-symbols-rounded">more_horiz</span>
@@ -188,6 +203,9 @@
         <div class="profile-actions">
           <button class="follow-btn" [class.following]="isFollowing" (click)="toggleFollow()">
             {{ isFollowing ? 'Following' : 'Follow' }}
+          </button>
+          <button class="message-btn" (click)="sendMessage()">
+            <span class="material-symbols-rounded">chat_bubble_outline</span>
           </button>
         </div>
       }
@@ -238,23 +256,37 @@
 
     @if (activeTab === 'posts') {
       <div class="video-grid">
-        @for (video of videos; track video.id; let i = $index) {
-          <div class="grid-item" (click)="openVideoViewer(i)">
-            <img [src]="getThumbUrl(video.cloudinaryUrl)" alt="" loading="lazy">
-            <div class="grid-overlay">
-              <span class="material-symbols-rounded">play_arrow</span>
-            </div>
-            @if (isOwnProfile) {
-              <button class="delete-btn" (click)="deleteVideo(video, $event)">
-                <span class="material-symbols-rounded">delete</span>
-              </button>
+        @for (item of gridItems; track item.id; let i = $index) {
+          <div class="grid-item" (click)="onGridItemClick(item)">
+            @if (item._type === 'video') {
+              <img [src]="getThumbUrl(item.cloudinaryUrl)" alt="" loading="lazy">
+              <div class="grid-overlay">
+                <span class="material-symbols-rounded">play_arrow</span>
+              </div>
+              @if (isOwnProfile) {
+                <button class="delete-btn" (click)="deleteVideo(item, $event)">
+                  <span class="material-symbols-rounded">delete</span>
+                </button>
+              }
+            } @else {
+              <img [src]="item.thumbnailUrl || item.images?.[0]?.url" alt="" loading="lazy">
+              @if (item.images?.length > 1) {
+                <div class="grid-overlay gallery-badge">
+                  <span class="material-symbols-rounded">photo_library</span>
+                </div>
+              }
+              @if (isOwnProfile) {
+                <button class="delete-btn" (click)="deletePost(item, $event)">
+                  <span class="material-symbols-rounded">delete</span>
+                </button>
+              }
             }
           </div>
         }
-        @if (videos.length === 0) {
+        @if (gridItems.length === 0) {
           <div class="empty-state">
             <span class="material-symbols-rounded">videocam_off</span>
-            <p>No videos posted yet</p>
+            <p>No posts yet</p>
           </div>
         }
       </div>
@@ -265,17 +297,17 @@
         <div class="saved-grid">
           @for (group of savedGroups; track group.country) {
             <div class="saved-card" (click)="openSavedGroup(group)">
-              <img [src]="getThumbUrl(group.thumbnail)" alt="" loading="lazy">
+              <img [src]="group.thumbnail.includes('/video/') ? getThumbUrl(group.thumbnail) : group.thumbnail" alt="" loading="lazy">
               <div class="saved-card-overlay">
                 <span class="saved-country">{{ group.country }}</span>
-                <span class="saved-count">{{ group.videos.length }} {{ group.videos.length === 1 ? 'video' : 'videos' }}</span>
+                <span class="saved-count">{{ group.videos.length }} {{ group.videos.length === 1 ? 'post' : 'posts' }}</span>
               </div>
             </div>
           }
           @if (savedGroups.length === 0) {
             <div class="empty-state">
               <span class="material-symbols-rounded">bookmark_border</span>
-              <p>No saved videos yet</p>
+              <p>No saved posts yet</p>
             </div>
           }
         </div>
@@ -288,8 +320,20 @@
         </div>
         <div class="video-grid">
           @for (video of savedGroupVideos; track video.id; let i = $index) {
-            <div class="grid-item">
-              <img [src]="getThumbUrl(video.cloudinaryUrl)" alt="" loading="lazy">
+            <div class="grid-item" (click)="onSavedItemClick(video)">
+              @if (video._type === 'post') {
+                <img [src]="video.thumbnailUrl || video.images?.[0]?.url" alt="" loading="lazy">
+                @if (video.images?.length > 1) {
+                  <div class="grid-overlay gallery-badge">
+                    <span class="material-symbols-rounded">photo_library</span>
+                  </div>
+                }
+              } @else {
+                <img [src]="getThumbUrl(video.cloudinaryUrl)" alt="" loading="lazy">
+                <div class="grid-overlay">
+                  <span class="material-symbols-rounded">play_arrow</span>
+                </div>
+              }
             </div>
           }
         </div>
@@ -302,7 +346,7 @@
             <img class="stamp-flag" [src]="stamp.flag" alt="">
             <span class="stamp-country">{{ stamp.country }}</span>
             <span class="stamp-date">{{ stamp.firstVisit }}</span>
-            <span class="stamp-count">{{ stamp.videoCount }} {{ stamp.videoCount === 1 ? 'video' : 'videos' }}</span>
+            <span class="stamp-count">{{ stamp.postCount }} {{ stamp.postCount === 1 ? 'post' : 'posts' }}</span>
           </div>
         }
         @if (stamps.length === 0) {
@@ -489,4 +533,18 @@
       </div>
     </div>
   }
+}
+
+@if (showImageViewer && imageViewerPost) {
+  <app-image-viewer
+    [images]="getPostImageUrls(imageViewerPost)"
+    [title]="imageViewerPost.title || ''"
+    [username]="profileUser?.username || ''"
+    [userAvatar]="profileUser?.photoURL || ''"
+    [location]="imageViewerPost.location ? imageViewerPost.location.city + ', ' + imageViewerPost.location.country : ''"
+    [likeCount]="imageViewerPost.likeCount || 0"
+    [liked]="imageViewerPost.liked"
+    (close)="closeImageViewer()"
+    (toggleLike)="toggleImagePostLike()"
+  />
 }

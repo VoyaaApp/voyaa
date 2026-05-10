@@ -1,0 +1,69 @@
+<div class="image-viewer-overlay" (click)="close.emit()">
+  <div class="viewer-content" (click)="$event.stopPropagation()">
+
+    <button class="viewer-close" (click)="close.emit()">
+      <span class="material-symbols-rounded">close</span>
+    </button>
+
+    <!-- Carousel -->
+    <div class="carousel"
+         (touchstart)="onTouchStart($event)"
+         (touchmove)="onTouchMove($event)"
+         (touchend)="onTouchEnd()">
+      <div class="carousel-track"
+           [style.transform]="'translateX(calc(-' + currentIndex * 100 + '% + ' + translateX + 'px))'">
+        @for (img of images; track $index) {
+          <div class="carousel-slide">
+            <img [src]="img" alt="">
+          </div>
+        }
+      </div>
+
+      <!-- Arrows (desktop) -->
+      @if (currentIndex > 0) {
+        <button class="carousel-arrow left" (click)="prev()">
+          <span class="material-symbols-rounded">chevron_left</span>
+        </button>
+      }
+      @if (currentIndex < images.length - 1) {
+        <button class="carousel-arrow right" (click)="next()">
+          <span class="material-symbols-rounded">chevron_right</span>
+        </button>
+      }
+    </div>
+
+    <!-- Dots -->
+    @if (images.length > 1) {
+      <div class="carousel-dots">
+        @for (d of dotArray; track d) {
+          <span class="dot" [class.active]="d === currentIndex" (click)="goTo(d)"></span>
+        }
+      </div>
+    }
+
+    <!-- Info bar -->
+    <div class="viewer-info">
+      <div class="viewer-user">
+        @if (userAvatar) {
+          <img [src]="userAvatar" class="viewer-avatar" alt="">
+        }
+        <span class="viewer-username">{{ username }}</span>
+      </div>
+      @if (title) {
+        <p class="viewer-title">{{ title }}</p>
+      }
+      @if (location) {
+        <div class="viewer-location">
+          <span class="material-symbols-rounded">location_on</span>
+          <span>{{ location }}</span>
+        </div>
+      }
+      <div class="viewer-actions">
+        <button class="viewer-action" [class.liked]="liked" (click)="toggleLike.emit()">
+          <span class="material-symbols-rounded">{{ liked ? 'favorite' : 'favorite_border' }}</span>
+          <span>{{ likeCount }}</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

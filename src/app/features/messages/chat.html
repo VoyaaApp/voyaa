@@ -1,0 +1,58 @@
+<div class="chat-page">
+  <div class="chat-header">
+    <button class="back-btn" (click)="goBack()">
+      <span class="material-symbols-rounded">arrow_back</span>
+    </button>
+    <div class="header-user" (click)="goToProfile()">
+      <div class="header-avatar">
+        @if (recipientAvatar) {
+          <img [src]="recipientAvatar" alt="">
+        } @else {
+          <span class="material-symbols-rounded">account_circle</span>
+        }
+      </div>
+      <span class="header-name">{{ recipientName }}</span>
+    </div>
+  </div>
+
+  <div class="messages-area" #messagesContainer>
+    @if (loading) {
+      <div class="loading">
+        <span class="material-symbols-rounded spin">progress_activity</span>
+      </div>
+    } @else if (messages.length === 0) {
+      <div class="empty-chat">
+        <div class="empty-avatar">
+          @if (recipientAvatar) {
+            <img [src]="recipientAvatar" alt="">
+          } @else {
+            <span class="material-symbols-rounded">account_circle</span>
+          }
+        </div>
+        <p class="empty-name">{{ recipientName }}</p>
+        <p class="empty-hint">Say hello to start the conversation</p>
+      </div>
+    } @else {
+      @for (msg of messages; track msg.id) {
+        <div class="message-row" [class.own]="isOwnMessage(msg)">
+          <div class="bubble" [class.own]="isOwnMessage(msg)">
+            <p class="bubble-text">{{ msg.text }}</p>
+            <span class="bubble-time">{{ formatTime(msg.createdAt) }}</span>
+          </div>
+        </div>
+      }
+    }
+  </div>
+
+  <div class="compose-bar">
+    <input
+      type="text"
+      [(ngModel)]="newMessage"
+      placeholder="Message..."
+      (keydown.enter)="sendMessage()"
+      class="compose-input">
+    <button class="send-btn" [disabled]="!newMessage.trim()" (click)="sendMessage()">
+      <span class="material-symbols-rounded">send</span>
+    </button>
+  </div>
+</div>

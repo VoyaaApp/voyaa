@@ -1,0 +1,154 @@
+<div class="upload-image-page">
+
+  @if (images.length === 0) {
+    <!-- Picker -->
+    <div class="upload-header">
+      <button class="back-btn" (click)="goBack()">
+        <span class="material-symbols-rounded">arrow_back</span>
+      </button>
+      <h1>Post Photos</h1>
+    </div>
+    <div class="file-picker" (click)="fileInput.click()">
+      <span class="material-symbols-rounded">add_photo_alternate</span>
+      <p>Select up to 10 photos</p>
+      <input #fileInput type="file" accept="image/*" multiple (change)="onFilesSelected($event)" hidden>
+    </div>
+  } @else if (step === 'edit') {
+    <!-- STEP 1: Edit photos -->
+    <div class="upload-header">
+      <button class="back-btn" (click)="goBack()">
+        <span class="material-symbols-rounded">arrow_back</span>
+      </button>
+      <h1>Edit Photos</h1>
+      <button class="next-btn" (click)="goToDetails()">
+        Next
+        <span class="material-symbols-rounded">arrow_forward</span>
+      </button>
+    </div>
+
+    <div class="image-strip">
+      @for (img of images; track $index; let i = $index) {
+        <div class="strip-item" [class.active]="i === activeIndex"
+             (click)="selectImage(i)"
+             draggable="true"
+             (dragstart)="onDragStart($event, i)"
+             (dragover)="onDragOver($event)"
+             (drop)="onDrop($event, i)">
+          <img [src]="getThumbUrl(img)" alt="" [attr.data-index]="i" class="strip-thumb" #thumbs>
+          @if (images.length > 1) {
+            <span class="strip-num">{{ i + 1 }}</span>
+          }
+        </div>
+      }
+      @if (images.length < 10) {
+        <button class="strip-add" (click)="addInput.click()">
+          <span class="material-symbols-rounded">add</span>
+          <input #addInput type="file" accept="image/*" multiple (change)="onFilesSelected($event)" hidden>
+        </button>
+      }
+    </div>
+
+    <div class="strip-actions">
+      <button class="strip-action" [disabled]="activeIndex === 0 || images.length < 2" (click)="moveImage(activeIndex, activeIndex - 1)">
+        <span class="material-symbols-rounded">arrow_back</span>
+        Move left
+      </button>
+      <button class="strip-action delete" (click)="removeImage(activeIndex)">
+        <span class="material-symbols-rounded">delete_outline</span>
+        Remove
+      </button>
+      <button class="strip-action" [disabled]="activeIndex === images.length - 1 || images.length < 2" (click)="moveImage(activeIndex, activeIndex + 1)">
+        Move right
+        <span class="material-symbols-rounded">arrow_forward</span>
+      </button>
+    </div>
+
+    <div class="editor-area"
+         (touchstart)="onSwipeStart($event)"
+         (touchmove)="onSwipeMove($event)"
+         (touchend)="onSwipeEnd()">
+      <app-image-editor
+        [imageFile]="images[activeIndex].file"
+        [editState]="images[activeIndex].editState"
+        (editStateChange)="onEditStateChange($event)">
+      </app-image-editor>
+    </div>
+  } @else {
+    <!-- STEP 2: Post details -->
+    <div class="upload-header">
+      <button class="back-btn" (click)="step = 'edit'">
+        <span class="material-symbols-rounded">arrow_back</span>
+      </button>
+      <h1>Post Details</h1>
+    </div>
+
+    <div class="details-preview">
+      <div class="preview-carousel">
+        <img [src]="previewUrls[previewIndex]" alt="">
+        @if (images.length > 1) {
+          <div class="preview-counter">{{ previewIndex + 1 }}/{{ images.length }}</div>
+          @if (previewIndex > 0) {
+            <button class="preview-arrow left" (click)="previewIndex = previewIndex - 1">
+              <span class="material-symbols-rounded">chevron_left</span>
+            </button>
+          }
+          @if (previewIndex < images.length - 1) {
+            <button class="preview-arrow right" (click)="previewIndex = previewIndex + 1">
+              <span class="material-symbols-rounded">chevron_right</span>
+            </button>
+          }
+        }
+      </div>
+    </div>
+
+    <div class="post-details">
+      <input type="text" [(ngModel)]="title" placeholder="Add a title..." class="title-input">
+
+      <div class="location-field">
+        @if (locationDisplay) {
+          <div class="location-selected">
+            <span class="material-symbols-rounded loc-icon">location_on</span>
+            <span class="loc-text">{{ locationDisplay }}</span>
+            <button type="button" class="loc-clear" (click)="clearLocation()">
+              <span class="material-symbols-rounded">close</span>
+            </button>
+          </div>
+        } @else {
+          <div class="location-input-wrap">
+            <span class="material-symbols-rounded loc-search-icon">location_on</span>
+            <input type="text" [(ngModel)]="locationQuery"
+                   placeholder="Where was this taken?"
+                   (input)="onLocationInput()"
+                   (focus)="showLocationDropdown = locationSuggestions.length > 0"
+                   autocomplete="off">
+            @if (isSearchingLocation) {
+              <div class="loc-spinner"></div>
+            }
+          </div>
+          @if (showLocationDropdown && locationSuggestions.length > 0) {
+            <div class="dropdown">
+              @for (s of locationSuggestions; track s.display) {
+                <div class="dropdown-item" (click)="selectLocation(s)">
+                  <span class="material-symbols-rounded dropdown-icon">location_on</span>
+                  {{ s.display }}
+                </div>
+              }
+            </div>
+          }
+        }
+      </div>
+
+      @if (errorMessage) {
+        <p class="error">{{ errorMessage }}</p>
+      }
+
+      <button class="post-btn" (click)="upload()" [disabled]="isUploading">
+        @if (isUploading) {
+          <span>{{ uploadStatus }} ({{ uploadProgress }}%)</span>
+        } @else {
+          <span>Post</span>
+        }
+      </button>
+    </div>
+  }
+</div>

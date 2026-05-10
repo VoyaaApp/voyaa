@@ -6,6 +6,11 @@
   bottom: 56px;
   z-index: 50;
   background: #080808;
+
+  @media (min-width: 768px) {
+    left: 220px;
+    bottom: 0;
+  }
 }
 
 .map-container {

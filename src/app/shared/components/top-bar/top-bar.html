@@ -2,8 +2,8 @@
   <img src="voyaa-small.png" alt="Voyaa" class="logo">
   <a class="bell-btn" routerLink="/activity">
     <span class="material-symbols-rounded">notifications</span>
-    @if (unreadCount > 0) {
-      <span class="badge">{{ unreadCount > 9 ? '9+' : unreadCount }}</span>
+    @if (totalUnread > 0) {
+      <span class="badge">{{ totalUnread > 9 ? '9+' : totalUnread }}</span>
     }
   </a>
 </div>

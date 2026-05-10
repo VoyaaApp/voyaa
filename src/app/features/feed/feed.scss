@@ -2,6 +2,11 @@
   height: calc(100dvh - 56px);
   overflow-y: scroll;
   scroll-snap-type: y mandatory;
+
+  @media (min-width: 768px) {
+    height: 100dvh;
+    margin-left: 220px;
+  }
 }
 
 .feed-state {
@@ -12,6 +17,11 @@
   justify-content: center;
   gap: 12px;
   color: #555;
+
+  @media (min-width: 768px) {
+    height: 100dvh;
+    margin-left: 220px;
+  }
 
   .material-symbols-rounded {
     font-size: 48px;
@@ -42,6 +52,10 @@
   position: relative;
   margin: 0;
   padding: 0;
+
+  @media (min-width: 768px) {
+    height: 100dvh;
+  }
 
   video {
     width: 100%;
@@ -255,6 +269,10 @@
   bottom: 0;
   background: rgba(0, 0, 0, 0.5);
   z-index: 200;
+
+  @media (min-width: 768px) {
+    left: 220px;
+  }
 }
 
 .comments-panel {
@@ -268,6 +286,11 @@
   z-index: 201;
   display: flex;
   flex-direction: column;
+
+  @media (min-width: 768px) {
+    bottom: 0;
+    left: 220px;
+  }
   animation: slideUp 0.3s ease-out;
 
   .comments-header {

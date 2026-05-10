@@ -1,0 +1,240 @@
+.messages-page {
+  min-height: 100dvh;
+  background: #080808;
+  color: #fff;
+  font-family: 'Inter', sans-serif;
+}
+
+.messages-header {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  position: sticky;
+  top: 0;
+  background: #080808;
+  z-index: 10;
+
+  h1 {
+    flex: 1;
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0;
+  }
+
+  .back-btn, .new-btn {
+    background: none;
+    border: none;
+    color: #fff;
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+
+    .material-symbols-rounded { font-size: 24px; }
+  }
+
+  .back-btn { margin-right: 12px; }
+}
+
+// Search
+.search-section {
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 10px 14px;
+
+  .search-icon {
+    font-size: 20px;
+    color: rgba(255, 255, 255, 0.3);
+  }
+
+  input {
+    flex: 1;
+    background: none;
+    border: none;
+    outline: none;
+    color: #fff;
+    font-size: 15px;
+    font-family: 'Inter', sans-serif;
+
+    &::placeholder { color: rgba(255, 255, 255, 0.3); }
+  }
+}
+
+.search-results {
+  margin-top: 8px;
+}
+
+.user-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 4px;
+  cursor: pointer;
+  border-radius: 10px;
+  transition: background 0.2s;
+
+  &:hover { background: rgba(255, 255, 255, 0.04); }
+}
+
+.user-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  img { width: 100%; height: 100%; object-fit: cover; }
+  .material-symbols-rounded { font-size: 40px; color: rgba(255, 255, 255, 0.3); }
+}
+
+.user-name {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+// Loading & empty
+.loading {
+  display: flex;
+  justify-content: center;
+  padding: 60px 0;
+
+  .spin {
+    font-size: 32px;
+    color: rgba(255, 255, 255, 0.3);
+    animation: spin 1s linear infinite;
+  }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 80px 20px;
+  color: rgba(255, 255, 255, 0.3);
+
+  .material-symbols-rounded { font-size: 48px; }
+  p { font-size: 15px; margin: 0; }
+
+  .start-btn {
+    margin-top: 8px;
+    padding: 10px 24px;
+    border-radius: 20px;
+    border: none;
+    background: #3891a6;
+    color: #fff;
+    font-size: 14px;
+    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+    cursor: pointer;
+  }
+}
+
+// Conversation list
+.conversation-list {
+  padding-bottom: 80px;
+}
+
+.convo-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: background 0.2s;
+
+  &:hover { background: rgba(255, 255, 255, 0.03); }
+  &:active { background: rgba(255, 255, 255, 0.06); }
+}
+
+.convo-avatar {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  img { width: 100%; height: 100%; object-fit: cover; }
+  .material-symbols-rounded { font-size: 50px; color: rgba(255, 255, 255, 0.2); }
+}
+
+.convo-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.convo-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 3px;
+}
+
+.convo-name {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.convo-time {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.35);
+  flex-shrink: 0;
+}
+
+.convo-preview {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.4);
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  &.unread-text {
+    color: rgba(255, 255, 255, 0.8);
+    font-weight: 500;
+  }
+}
+
+.unread-badge {
+  background: #3891a6;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  flex-shrink: 0;
+}
+
+.convo-row.unread .convo-name {
+  color: #fff;
+}
+
+.convo-row.unread .convo-time {
+  color: #3891a6;
+}

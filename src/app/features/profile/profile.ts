@@ -3,6 +3,7 @@ import { Router, ActivatedRoute, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../core/services/auth.service';
 import { ConfirmDialog } from '../../shared/components/confirm-dialog/confirm-dialog';
+import { ImageViewer } from '../../shared/components/image-viewer/image-viewer';
 import { timeAgo } from '../../shared/utils/time';
 import { db, auth } from '../../core/services/firebase.service';
 import { collection, getDocs, query, where, doc, getDoc, updateDoc, deleteDoc, setDoc, increment, addDoc, onSnapshot, orderBy } from 'firebase/firestore';
@@ -11,7 +12,7 @@ import { COUNTRY_FLAGS, COUNTRY_CODES, REGION_MAP, COUNTRY_COORDS } from '../../
 
 @Component({
   selector: 'app-profile',
-  imports: [FormsModule, ConfirmDialog, RouterLink],
+  imports: [FormsModule, ConfirmDialog, RouterLink, ImageViewer],
   templateUrl: './profile.html',
   styleUrl: './profile.scss',
 })
@@ -23,11 +24,16 @@ export class Profile implements OnInit, OnDestroy {
 
   profileUser: any = null;
   videos: any[] = [];
+  posts: any[] = [];
+  gridItems: any[] = [];
   isOwnProfile = true;
   isFollowing = false;
   isEditing = false;
   showMenu = false;
+  showCreateMenu = false;
   showVideoViewer = false;
+  showImageViewer = false;
+  imageViewerPost: any = null;
   viewerStartIndex = 0;
   viewerMuted = true;
   showMuteIndicator = false;
@@ -59,6 +65,10 @@ export class Profile implements OnInit, OnDestroy {
       .replace('/video/upload/', '/video/upload/so_0,w_400,h_500,c_fill,q_auto,f_auto/')
       .replace(/\.[^.]+$/, '.jpg');
   }
+
+  getPostImageUrls(post: any): string[] {
+    return (post.images || []).map((img: any) => img.url);
+  }
   readonly usernameMax = 20;
   readonly bioMax = 150;
   uploadingImage = false;
@@ -88,7 +98,7 @@ export class Profile implements OnInit, OnDestroy {
   // Passport features
 
   travelStats = { countries: 0, continents: 0, videos: 0 };
-  stamps: { country: string; flag: string; firstVisit: string; videoCount: number }[] = [];
+  stamps: { country: string; flag: string; firstVisit: string; postCount: number }[] = [];
   badges: { name: string; icon: string; description: string; earned: boolean }[] = [];
   activeBadge: { name: string; icon: string; description: string; earned: boolean } | null = null;
 
@@ -134,8 +144,17 @@ export class Profile implements OnInit, OnDestroy {
     // Load user's videos
     const q = query(collection(db, 'videos'), where('userId', '==', userId));
     const snapshot = await getDocs(q);
-    this.videos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), liked: false, bookmarked: false }));
+    this.videos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), liked: false, bookmarked: false, _type: 'video' }));
     this.videos.sort((a: any, b: any) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+
+    // Load user's image posts
+    const pq = query(collection(db, 'posts'), where('userId', '==', userId));
+    const psnap = await getDocs(pq);
+    this.posts = psnap.docs.map(doc => ({ id: doc.id, ...doc.data(), liked: false, _type: 'post' }));
+
+    // Merge into grid items sorted by date
+    this.gridItems = [...this.videos, ...this.posts]
+      .sort((a: any, b: any) => (b.createdAt || '').localeCompare(a.createdAt || ''));
 
     // Batch check likes for current user
     const currentUid = this.authService.currentUser()?.uid;
@@ -147,6 +166,12 @@ export class Profile implements OnInit, OnDestroy {
         ]);
         video.liked = likeDoc.exists();
         video.bookmarked = bookmarkDoc.exists();
+      }));
+
+      // Check post likes
+      await Promise.all(this.posts.map(async (post) => {
+        const likeDoc2 = await getDoc(doc(db, 'posts', post.id, 'likes', currentUid));
+        post.liked = likeDoc2.exists();
       }));
 
       // Check if following
@@ -166,15 +191,17 @@ export class Profile implements OnInit, OnDestroy {
     const countrySet = new Set<string>();
     const continentSet = new Set<string>();
     const countryFirstVisit = new Map<string, string>();
-    const countryVideoCount = new Map<string, number>();
+    const countryPostCount = new Map<string, number>();
 
-    for (const v of this.videos) {
+    // Count both videos and image posts
+    const allItems = [...this.videos, ...this.posts];
+    for (const v of allItems) {
       const country = v.location?.country;
       if (!country) continue;
       countrySet.add(country);
       const region = REGION_MAP[country];
       if (region) continentSet.add(region);
-      countryVideoCount.set(country, (countryVideoCount.get(country) || 0) + 1);
+      countryPostCount.set(country, (countryPostCount.get(country) || 0) + 1);
       const existing = countryFirstVisit.get(country);
       if (!existing || v.createdAt < existing) {
         countryFirstVisit.set(country, v.createdAt);
@@ -184,7 +211,7 @@ export class Profile implements OnInit, OnDestroy {
     this.travelStats = {
       countries: countrySet.size,
       continents: continentSet.size,
-      videos: this.videos.length,
+      videos: allItems.length,
     };
 
     // Stamps
@@ -192,19 +219,19 @@ export class Profile implements OnInit, OnDestroy {
       country,
       flag: this.getFlagUrl(country),
       firstVisit: new Date(countryFirstVisit.get(country)!).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
-      videoCount: countryVideoCount.get(country) || 0,
+      postCount: countryPostCount.get(country) || 0,
     })).sort((a, b) => (countryFirstVisit.get(a.country)! > countryFirstVisit.get(b.country)! ? 1 : -1));
 
     // Badges
     const nc = countrySet.size;
     const nr = continentSet.size;
-    const nv = this.videos.length;
+    const nv = allItems.length;
     this.badges = [
-      { name: 'First Stamp', icon: 'workspace_premium', description: 'Post your first video', earned: nv >= 1 },
+      { name: 'First Stamp', icon: 'workspace_premium', description: 'Create your first post', earned: nv >= 1 },
       { name: 'Explorer', icon: 'explore', description: 'Post from 3+ countries', earned: nc >= 3 },
       { name: 'Globe Trotter', icon: 'language', description: 'Post from 5+ countries', earned: nc >= 5 },
       { name: 'Continental', icon: 'public', description: 'Post from 3+ continents', earned: nr >= 3 },
-      { name: 'Storyteller', icon: 'auto_stories', description: 'Post 10+ videos', earned: nv >= 10 },
+      { name: 'Storyteller', icon: 'auto_stories', description: 'Create 10+ posts', earned: nv >= 10 },
       { name: 'World Traveler', icon: 'flight_takeoff', description: 'Post from 10+ countries', earned: nc >= 10 },
     ];
   }
@@ -267,6 +294,36 @@ export class Profile implements OnInit, OnDestroy {
       await setDoc(followingRef, { userId: targetUid, createdAt: new Date().toISOString() });
       await updateDoc(targetUserRef, { followerCount: increment(1) });
       await updateDoc(currentUserRef, { followingCount: increment(1) });
+    }
+  }
+
+  async sendMessage() {
+    const uid = auth.currentUser?.uid;
+    const targetUid = this.profileUser.uid;
+    if (!uid || !targetUid || uid === targetUid) return;
+
+    // Check for existing conversation
+    const q = query(
+      collection(db, 'conversations'),
+      where('participants', 'array-contains', uid)
+    );
+    const snapshot = await getDocs(q);
+    const existing = snapshot.docs.find(d => {
+      const participants = d.data()['participants'] as string[];
+      return participants.includes(targetUid);
+    });
+
+    if (existing) {
+      this.router.navigate(['/messages', existing.id]);
+    } else {
+      const convoRef = await addDoc(collection(db, 'conversations'), {
+        participants: [uid, targetUid],
+        lastMessage: '',
+        updatedAt: new Date(),
+        ['unreadCount_' + uid]: 0,
+        ['unreadCount_' + targetUid]: 0,
+      });
+      this.router.navigate(['/messages', convoRef.id]);
     }
   }
 
@@ -384,6 +441,53 @@ export class Profile implements OnInit, OnDestroy {
       this.authService.logout().then(() => {
         this.router.navigate(['/login']);
       });
+    });
+  }
+
+  onGridItemClick(item: any) {
+    if (item._type === 'post') {
+      this.imageViewerPost = item;
+      this.showImageViewer = true;
+      this.cdr.detectChanges();
+    } else {
+      const videoIndex = this.videos.indexOf(item);
+      if (videoIndex >= 0) this.openVideoViewer(videoIndex);
+    }
+  }
+
+  closeImageViewer() {
+    this.showImageViewer = false;
+    this.imageViewerPost = null;
+    this.cdr.detectChanges();
+  }
+
+  async toggleImagePostLike() {
+    const post = this.imageViewerPost;
+    if (!post) return;
+    const uid = this.authService.currentUser()?.uid;
+    if (!uid) return;
+    const likeRef = doc(db, 'posts', post.id, 'likes', uid);
+    if (post.liked) {
+      await deleteDoc(likeRef);
+      post.liked = false;
+      post.likeCount = (post.likeCount || 1) - 1;
+      await updateDoc(doc(db, 'posts', post.id), { likeCount: increment(-1) });
+    } else {
+      await setDoc(likeRef, { createdAt: new Date().toISOString() });
+      post.liked = true;
+      post.likeCount = (post.likeCount || 0) + 1;
+      await updateDoc(doc(db, 'posts', post.id), { likeCount: increment(1) });
+    }
+    this.cdr.detectChanges();
+  }
+
+  async deletePost(post: any, event: Event) {
+    event.stopPropagation();
+    this.openConfirm('Delete this post?', 'Delete', true, async () => {
+      await deleteDoc(doc(db, 'posts', post.id));
+      this.posts = this.posts.filter(p => p.id !== post.id);
+      this.gridItems = this.gridItems.filter(i => i !== post);
+      this.cdr.detectChanges();
     });
   }
 
@@ -616,6 +720,31 @@ export class Profile implements OnInit, OnDestroy {
     const snapshot = await getDocs(collection(db, 'users', uid, 'bookmarks'));
     const bookmarks = snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as any[];
 
+    // Enrich bookmarks with actual post/video data for thumbnails
+    await Promise.all(bookmarks.map(async (b) => {
+      if (!b._type) {
+        // Legacy bookmark — try to determine type
+        const postDoc = await getDoc(doc(db, 'posts', b.id));
+        if (postDoc.exists()) {
+          const data = postDoc.data();
+          b._type = 'post';
+          b.images = data['images'];
+          b.thumbnailUrl = data['thumbnailUrl'] || data['images']?.[0]?.url || '';
+        } else {
+          b._type = 'video';
+        }
+      }
+      // If post bookmark still has no thumbnail, fetch it
+      if (b._type === 'post' && !b.thumbnailUrl && !b.images?.length) {
+        const postDoc = await getDoc(doc(db, 'posts', b.id));
+        if (postDoc.exists()) {
+          const data = postDoc.data();
+          b.images = data['images'];
+          b.thumbnailUrl = data['thumbnailUrl'] || data['images']?.[0]?.url || '';
+        }
+      }
+    }));
+
     const groups = new Map<string, any[]>();
     for (const b of bookmarks) {
       const country = b.country || 'Unknown';
@@ -623,10 +752,10 @@ export class Profile implements OnInit, OnDestroy {
       groups.get(country)!.push(b);
     }
 
-    this.savedGroups = Array.from(groups.entries()).map(([country, videos]) => ({
+    this.savedGroups = Array.from(groups.entries()).map(([country, items]) => ({
       country,
-      videos,
-      thumbnail: videos[0]?.cloudinaryUrl || '',
+      videos: items,
+      thumbnail: items[0]?.cloudinaryUrl || items[0]?.thumbnailUrl || items[0]?.images?.[0]?.url || '',
     }));
     this.cdr.detectChanges();
   }
@@ -639,6 +768,20 @@ export class Profile implements OnInit, OnDestroy {
 
   closeSavedGroup() {
     this.showSavedGroup = false;
+  }
+
+  onSavedItemClick(item: any) {
+    if (item._type === 'post') {
+      this.imageViewerPost = item;
+      this.showImageViewer = true;
+      this.cdr.detectChanges();
+    } else {
+      // Find the video in the videos array and open viewer
+      const videoIndex = this.videos.findIndex(v => v.id === item.id || v.id === item.videoId);
+      if (videoIndex >= 0) {
+        this.openVideoViewer(videoIndex);
+      }
+    }
   }
 
   openComments(video: any) {

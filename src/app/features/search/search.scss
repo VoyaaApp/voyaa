@@ -4,6 +4,11 @@
   background: #0a0a0a;
   min-height: calc(100vh - 56px);
   padding: 16px;
+
+  @media (min-width: 768px) {
+    min-height: 100vh;
+    margin-left: 220px;
+  }
 }
 
 .search-bar {

@@ -1,0 +1,229 @@
+.image-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #0a0a0a;
+}
+
+.editor-preview {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 8px;
+  touch-action: none;
+  user-select: none;
+  min-height: 0;
+
+  canvas {
+    max-width: 100%;
+    max-height: 100%;
+    border-radius: 4px;
+  }
+}
+
+.filter-canvas-hidden {
+  display: none;
+}
+
+// ── Tool area ──
+
+.editor-tools {
+  background: #111;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+}
+
+.tool-tabs {
+  display: flex;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+
+  .tool-tab {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 10px 0;
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.4);
+    cursor: pointer;
+    transition: color 0.2s;
+
+    .material-symbols-rounded { font-size: 22px; }
+    .tab-label { font-size: 10px; font-weight: 500; }
+
+    &.active {
+      color: #3891a6;
+    }
+  }
+}
+
+.tool-panel {
+  padding: 14px 16px;
+  height: 120px;
+  box-sizing: border-box;
+  overflow-y: auto;
+}
+
+.tool-hint {
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 12px;
+  text-align: center;
+  margin-top: 8px;
+}
+
+// ── Crop ──
+
+.aspect-ratios {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+
+  .aspect-btn {
+    padding: 8px 16px;
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: transparent;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 13px;
+    font-family: 'Inter', sans-serif;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+
+    &.active {
+      background: rgba(56, 145, 166, 0.15);
+      border-color: #3891a6;
+      color: #3891a6;
+    }
+  }
+}
+
+// ── Filters ──
+
+.filter-grid {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+  padding-bottom: 2px;
+
+  .filter-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    cursor: pointer;
+    padding: 10px 16px;
+    flex-shrink: 0;
+    transition: all 0.2s;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .filter-name {
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.55);
+      white-space: nowrap;
+      font-family: 'Inter', sans-serif;
+      font-weight: 500;
+    }
+
+    &.active {
+      border-color: #3891a6;
+      background: rgba(56, 145, 166, 0.12);
+    }
+
+    &.active .filter-name {
+      color: #3891a6;
+    }
+  }
+}
+
+// ── Adjust ──
+
+.adjust-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.slider-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 13px;
+    width: 120px;
+    flex-shrink: 0;
+
+    .material-symbols-rounded {
+      font-size: 18px;
+      color: rgba(255, 255, 255, 0.4);
+    }
+  }
+
+  input[type='range'] {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+    outline: none;
+
+    &::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #3891a6;
+      cursor: pointer;
+    }
+  }
+
+  .slider-value {
+    width: 32px;
+    text-align: right;
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+// ── Rotate ──
+
+.rotate-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px auto 0;
+  padding: 10px 24px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(56, 145, 166, 0.1);
+  color: #3891a6;
+  font-size: 14px;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+
+  .material-symbols-rounded {
+    font-size: 20px;
+  }
+}
