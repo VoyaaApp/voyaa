@@ -33,6 +33,7 @@ export class Profile implements OnInit, OnDestroy {
   private interaction = inject(InteractionService);
   private blockService = inject(BlockService);
   private tripService = inject(TripService);
+  private el = inject(ElementRef);
 
   profileUser: any = null;
   videos: any[] = [];
@@ -1009,6 +1010,9 @@ export class Profile implements OnInit, OnDestroy {
     this.savedGroupTrip = entry.trip;
     this.savedGroupVideos = entry.bookmarks;
     this.showSavedGroup = true;
+    this.cdr.detectChanges();
+    const page = this.el.nativeElement.querySelector('.profile-page');
+    if (page) page.scrollTop = 0;
   }
 
   closeSavedGroup() {

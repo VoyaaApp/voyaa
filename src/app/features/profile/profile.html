@@ -131,6 +131,82 @@
 
 @if (profileUser && !loading) {
   <div class="profile-page">
+    @if (showSavedGroup) {
+        <div class="saved-group-header">
+          <button class="back-btn" (click)="closeSavedGroup()">
+            <span class="material-symbols-rounded">arrow_back</span>
+          </button>
+          <h3>{{ savedGroupTrip?.name }}</h3>
+          @if (savedGroupTrip?.date) {
+            <span class="trip-countdown-badge">{{ getCountdown(savedGroupTrip!.date!) }}</span>
+          }
+        </div>
+
+        @if (isOwnProfile || savedGroupVideos.length > 0) {
+          <div class="saved-group-toolbar">
+            @if (savedGroupVideos.length > 0) {
+              <button class="toolbar-btn" (click)="tripMapTrip = savedGroupTrip; tripMapBookmarks = savedGroupVideos; showTripMap = true">
+                <span class="material-symbols-rounded">map</span>
+                Map
+              </button>
+            }
+            @if (isOwnProfile && savedGroupTrip?.id !== '__wishlist__') {
+              <button class="toolbar-btn" (click)="openEditTrip()">
+                <span class="material-symbols-rounded">edit</span>
+                Edit Trip
+              </button>
+            }
+            @if (isOwnProfile) {
+              <button class="toolbar-btn" [class.active]="savedEditMode" (click)="savedEditMode = !savedEditMode">
+                <span class="material-symbols-rounded">{{ savedEditMode ? 'check' : 'remove_circle_outline' }}</span>
+                {{ savedEditMode ? 'Done' : 'Remove' }}
+              </button>
+            }
+          </div>
+        }
+
+        @if (showEditTrip) {
+          <div class="edit-trip-form">
+            <input type="text" [(ngModel)]="editTripName" class="edit-trip-input" placeholder="Trip name" maxlength="50">
+            <div class="edit-trip-date-row">
+              <label>
+                <span class="material-symbols-rounded">calendar_today</span>
+                Departure date
+              </label>
+              <input type="date" [(ngModel)]="editTripDate" class="edit-trip-date" style="color-scheme: dark">
+            </div>
+            <div class="edit-trip-actions">
+              <button class="cancel-btn" (click)="showEditTrip = false">Cancel</button>
+              <button class="confirm-btn" [disabled]="!editTripName.trim()" (click)="saveEditTrip()">Save</button>
+            </div>
+          </div>
+        }
+
+        <div class="video-grid">
+          @for (video of savedGroupVideos; track video.id; let i = $index) {
+            <div class="grid-item" (click)="onSavedItemClick(video)">
+              @if (video._type === 'post') {
+                <img [src]="video.thumbnailUrl || video.images?.[0]?.url" alt="" loading="lazy">
+                @if (video.images?.length > 1) {
+                  <div class="grid-overlay gallery-badge">
+                    <span class="material-symbols-rounded">photo_library</span>
+                  </div>
+                }
+              } @else {
+                <img [src]="getThumbUrl(video.cloudinaryUrl)" alt="" loading="lazy">
+                <div class="grid-overlay">
+                  <span class="material-symbols-rounded">play_arrow</span>
+                </div>
+              }
+              @if (savedEditMode) {
+                <button class="delete-badge" (click)="deleteSavedItem(video, $event)" aria-label="Remove saved post">
+                  <span class="material-symbols-rounded">close</span>
+                </button>
+              }
+            </div>
+          }
+        </div>
+    } @else {
     <div class="profile-details">
       <div class="top-row">
         <div class="avatar-section" (click)="onAvatarClick()">
@@ -380,7 +456,6 @@
     }
 
     @if (activeTab === 'saved') {
-      @if (!showSavedGroup) {
         @if (isOwnProfile && savedTrips.length > 0) {
           <div class="saved-edit-bar">
             <button class="edit-toggle" (click)="savedEditMode = !savedEditMode">
@@ -419,76 +494,6 @@
             </div>
           }
         </div>
-      } @else {
-        <div class="saved-group-header">
-          <button class="back-btn" (click)="closeSavedGroup()">
-            <span class="material-symbols-rounded">arrow_back</span>
-          </button>
-          <h3>{{ savedGroupTrip?.name }}</h3>
-          @if (savedGroupTrip?.date) {
-            <span class="trip-countdown-badge">{{ getCountdown(savedGroupTrip!.date!) }}</span>
-          }
-          <div class="saved-group-actions">
-            @if (savedGroupVideos.length > 0) {
-              <button class="map-btn" (click)="tripMapTrip = savedGroupTrip; tripMapBookmarks = savedGroupVideos; showTripMap = true">
-                <span class="material-symbols-rounded">map</span>
-              </button>
-            }
-            @if (isOwnProfile && savedGroupTrip?.id !== '__wishlist__') {
-              <button class="edit-toggle" (click)="openEditTrip()">
-                <span class="material-symbols-rounded" style="font-size: 18px">edit</span>
-              </button>
-            }
-            @if (isOwnProfile) {
-              <button class="edit-toggle" (click)="savedEditMode = !savedEditMode">
-                {{ savedEditMode ? 'Done' : 'Edit' }}
-              </button>
-            }
-          </div>
-        </div>
-
-        @if (showEditTrip) {
-          <div class="edit-trip-form">
-            <input type="text" [(ngModel)]="editTripName" class="edit-trip-input" placeholder="Trip name" maxlength="50">
-            <div class="edit-trip-date-row">
-              <label>
-                <span class="material-symbols-rounded">calendar_today</span>
-                Departure date
-              </label>
-              <input type="date" [(ngModel)]="editTripDate" class="edit-trip-date" style="color-scheme: dark">
-            </div>
-            <div class="edit-trip-actions">
-              <button class="cancel-btn" (click)="showEditTrip = false">Cancel</button>
-              <button class="confirm-btn" [disabled]="!editTripName.trim()" (click)="saveEditTrip()">Save</button>
-            </div>
-          </div>
-        }
-
-        <div class="video-grid">
-          @for (video of savedGroupVideos; track video.id; let i = $index) {
-            <div class="grid-item" (click)="onSavedItemClick(video)">
-              @if (video._type === 'post') {
-                <img [src]="video.thumbnailUrl || video.images?.[0]?.url" alt="" loading="lazy">
-                @if (video.images?.length > 1) {
-                  <div class="grid-overlay gallery-badge">
-                    <span class="material-symbols-rounded">photo_library</span>
-                  </div>
-                }
-              } @else {
-                <img [src]="getThumbUrl(video.cloudinaryUrl)" alt="" loading="lazy">
-                <div class="grid-overlay">
-                  <span class="material-symbols-rounded">play_arrow</span>
-                </div>
-              }
-              @if (savedEditMode) {
-                <button class="delete-badge" (click)="deleteSavedItem(video, $event)" aria-label="Remove saved post">
-                  <span class="material-symbols-rounded">close</span>
-                </button>
-              }
-            </div>
-          }
-        </div>
-      }
     }
     @if (activeTab === 'stamps') {
       <div class="stamps-grid">
@@ -507,6 +512,7 @@
           </div>
         }
       </div>
+    }
     }
     }
   </div>
