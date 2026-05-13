@@ -1,6 +1,8 @@
+import { environment } from '../../environments/environment';
+
 export async function sharePost(title?: string): Promise<boolean> {
   const text = title || 'Check out this post on Voyaa';
-  const url = 'https://voyaaapp.github.io/voyaa';
+  const url = environment.baseUrl;
   if (navigator.share) {
     try {
       await navigator.share({ title: text, text, url });

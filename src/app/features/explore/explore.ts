@@ -1,10 +1,11 @@
-import { Component, OnInit, OnDestroy, AfterViewInit, inject, ChangeDetectorRef, ElementRef, viewChild, viewChildren } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, ChangeDetectorRef, ChangeDetectionStrategy, ElementRef, viewChild, viewChildren } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
-import { collection, getDocs, doc, getDoc, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../../core/services/firebase.service';
 import { AuthService } from '../../core/services/auth.service';
 import { InteractionService } from '../../core/services/interaction.service';
 import { BlockService } from '../../core/services/block.service';
+import { UnreadService } from '../../core/services/unread.service';
 import { CommentPanel } from '../../shared/components/comment-panel/comment-panel';
 import { PostCard } from '../../shared/components/post-card/post-card';
 import { ReportPanel } from '../../shared/components/report-panel/report-panel';
@@ -12,7 +13,7 @@ import { ConfirmDialog } from '../../shared/components/confirm-dialog/confirm-di
 import { TripPicker } from '../../shared/components/trip-picker/trip-picker';
 import { TripService, Trip, WISHLIST_ID } from '../../core/services/trip.service';
 import { COUNTRY_COORDS, REGION_MAP } from '../../shared/data/geo';
-import { formatCount } from '../../shared/utils/format';
+import { formatCount, getThumbUrl } from '../../shared/utils/format';
 import { timeAgo } from '../../shared/utils/time';
 import { sharePost } from '../../shared/utils/share';
 
@@ -46,14 +47,16 @@ interface VideoCard {
   imports: [RouterLink, PostCard, CommentPanel, ReportPanel, ConfirmDialog, TripPicker],
   templateUrl: './explore.html',
   styleUrl: './explore.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class Explore implements OnInit, AfterViewInit, OnDestroy {
+export class Explore implements OnInit, OnDestroy {
   private router = inject(Router);
   private cdr = inject(ChangeDetectorRef);
   authService = inject(AuthService);
   private interaction = inject(InteractionService);
   private blockService = inject(BlockService);
   private tripService = inject(TripService);
+  private unreadService = inject(UnreadService);
   mapContainer = viewChild<ElementRef>('mapContainer');
 
   allVideoCards: VideoCard[] = [];
@@ -62,10 +65,9 @@ export class Explore implements OnInit, AfterViewInit, OnDestroy {
   followedUids = new Set<string>();
   favouriteCountries = new Set<string>();
   loading = true;
-  loadError = false;
   formatCount = formatCount;
   timeAgo = timeAgo;
-  isMuted = false;
+  isMuted = true;
   showPauseIndicator = false;
   pauseIndicatorFading = false;
   isPaused = false;
@@ -82,10 +84,8 @@ export class Explore implements OnInit, AfterViewInit, OnDestroy {
   private lightboxSwipeDelta = 0;
 
   // Messages & Notifications
-  unreadMessages = 0;
-  unreadNotifications = 0;
-  private unsubMessages: (() => void) | null = null;
-  private unsubNotifications: (() => void) | null = null;
+  get unreadMessages() { return this.unreadService.unreadMessages(); }
+  get unreadNotifications() { return this.unreadService.unreadNotifications(); }
 
   tabs = ['All', 'Following', 'Trending', 'Favourited', 'Asia', 'Europe', 'Americas', 'Africa', 'Middle East', 'Oceania'];
   activeTab = 'All';
@@ -96,25 +96,9 @@ export class Explore implements OnInit, AfterViewInit, OnDestroy {
   private miniMap: any = null;
   private allVideos: any[] = [];
 
-  /** Convert Cloudinary video URL to an image thumbnail */
-  getThumbUrl(url: string): string {
-    if (!url) return '';
-    return url
-      .replace('/video/upload/', '/video/upload/so_0,w_400,h_500,c_fill,q_auto,f_auto/')
-      .replace(/\.[^.]+$/, '.jpg');
-  }
+  getThumbUrl = getThumbUrl;
 
   async ngOnInit() {
-    this.listenUnreadMessages();
-    this.listenUnreadNotifications();
-    await this.loadContent();
-  }
-
-  async loadContent() {
-    this.loadError = false;
-    this.loading = true;
-    this.cdr.detectChanges();
-    try {
     await this.blockService.ensureLoaded();
     const snapshot = await getDocs(collection(db, 'videos'));
     this.allVideos = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -219,14 +203,8 @@ export class Explore implements OnInit, AfterViewInit, OnDestroy {
       this.initMiniMap();
       this.setupFollowingObserver();
     }, 50);
-    } catch {
-      this.loadError = true;
-      this.loading = false;
-      this.cdr.detectChanges();
-    }
   }
 
-  ngAfterViewInit() {}
 
   ngOnDestroy() {
     if (this.miniMap) {
@@ -236,38 +214,6 @@ export class Explore implements OnInit, AfterViewInit, OnDestroy {
     this.followingObserver?.disconnect();
     clearTimeout(this.pressTimer);
     clearTimeout(this.tapTimer);
-    this.unsubMessages?.();
-    this.unsubNotifications?.();
-  }
-
-  private listenUnreadMessages() {
-    const uid = auth.currentUser?.uid;
-    if (!uid) return;
-    const mq = query(
-      collection(db, 'conversations'),
-      where('participants', 'array-contains', uid)
-    );
-    this.unsubMessages = onSnapshot(mq, (snapshot) => {
-      let total = 0;
-      snapshot.docs.forEach(d => {
-        total += d.data()['unreadCount_' + uid] || 0;
-      });
-      this.unreadMessages = total;
-      this.cdr.detectChanges();
-    });
-  }
-
-  private listenUnreadNotifications() {
-    const uid = auth.currentUser?.uid;
-    if (!uid) return;
-    const nq = query(
-      collection(db, 'users', uid, 'notifications'),
-      where('read', '==', false)
-    );
-    this.unsubNotifications = onSnapshot(nq, (snapshot) => {
-      this.unreadNotifications = snapshot.size;
-      this.cdr.detectChanges();
-    });
   }
 
   /** Small non-interactive map preview with destination dots */
@@ -675,36 +621,32 @@ export class Explore implements OnInit, AfterViewInit, OnDestroy {
     this.showBlockConfirm = false;
   }
 
-  // Delete confirmation
-  showDeleteConfirm = false;
-  pendingDeleteVideo: any = null;
-  deleteError = false;
-
-  deleteVideo(video: any) {
-    this.pendingDeleteVideo = video;
-    this.showDeleteConfirm = true;
-    this.cdr.detectChanges();
-  }
-
-  async doDeleteVideo() {
-    this.showDeleteConfirm = false;
-    const video = this.pendingDeleteVideo;
-    if (!video) return;
-    try {
+  async deleteVideo(video: any) {
+    this.confirmMessage = 'Delete this video?';
+    this.confirmAction = async () => {
       const { deleteDoc, doc: fbDoc } = await import('firebase/firestore');
       await deleteDoc(fbDoc(db, 'videos', video.id));
       this.allVideoCards = this.allVideoCards.filter(v => v.id !== video.id);
       this.updateDisplayedVideos();
-    } catch {
-      this.deleteError = true;
-      setTimeout(() => { this.deleteError = false; this.cdr.detectChanges(); }, 3000);
-    }
-    this.pendingDeleteVideo = null;
+      this.cdr.detectChanges();
+    };
+    this.showConfirm = true;
     this.cdr.detectChanges();
   }
 
-  cancelDeleteVideo() {
-    this.showDeleteConfirm = false;
-    this.pendingDeleteVideo = null;
+  // General confirm dialog
+  showConfirm = false;
+  confirmMessage = '';
+  private confirmAction: (() => void) | null = null;
+
+  onConfirmed() {
+    this.showConfirm = false;
+    this.confirmAction?.();
+    this.confirmAction = null;
+  }
+
+  onCancelled() {
+    this.showConfirm = false;
+    this.confirmAction = null;
   }
 }

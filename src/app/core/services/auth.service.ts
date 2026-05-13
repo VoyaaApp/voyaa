@@ -9,6 +9,7 @@ import {
 import { auth } from './firebase.service';
 import { db } from './firebase.service';
 import { collection, getDocs, deleteDoc, doc, query, where, writeBatch } from 'firebase/firestore';
+import { environment } from '../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -34,7 +35,7 @@ export class AuthService {
 
   resetPassword(email: string) {
     return sendPasswordResetEmail(auth, email, {
-      url: 'https://voyaaapp.github.io/voyaa/reset-password',
+      url: `${environment.baseUrl}/reset-password`,
       handleCodeInApp: true
     });
   }

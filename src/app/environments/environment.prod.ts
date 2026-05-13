@@ -1,5 +1,6 @@
 export const environment = {
   production: true,
+  baseUrl: 'https://voyaa.io',
   firebase: {
     apiKey: "AIzaSyBiTQymMYKtpQT8Bilzf7V87hcd30bs3Vw",
     authDomain: "voyaa-744e5.firebaseapp.com",
