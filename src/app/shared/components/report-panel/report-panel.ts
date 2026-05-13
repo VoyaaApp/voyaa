@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, inject, ChangeDetectorRef, HostListener } from '@angular/core';
+import { Component, Input, Output, EventEmitter, inject, ChangeDetectorRef } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { collection, addDoc } from 'firebase/firestore';
 import { db, auth } from '../../../core/services/firebase.service';
@@ -192,9 +192,6 @@ export class ReportPanel {
   @Input() contentType: 'video' | 'post' | 'comment' = 'post';
   @Input() contentOwnerId = '';
   @Output() closed = new EventEmitter<void>();
-
-  @HostListener('document:keydown.escape')
-  onEscape() { if (this.visible) this.closed.emit(); }
 
   private cdr = inject(ChangeDetectorRef);
 

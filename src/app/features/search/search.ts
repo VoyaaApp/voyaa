@@ -1,4 +1,4 @@
-import { Component, inject, OnDestroy, ChangeDetectorRef } from '@angular/core';
+import { Component, inject, OnDestroy, ChangeDetectorRef, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { db } from '../../core/services/firebase.service';
@@ -9,6 +9,7 @@ import { collection, getDocs } from 'firebase/firestore';
   imports: [FormsModule],
   templateUrl: './search.html',
   styleUrl: './search.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class Search implements OnDestroy {
   private router = inject(Router);

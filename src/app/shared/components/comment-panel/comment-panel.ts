@@ -1,7 +1,7 @@
 import {
   Component, Input, Output, EventEmitter, OnChanges, OnDestroy,
   SimpleChanges, inject, ChangeDetectorRef, ChangeDetectionStrategy,
-  ElementRef, viewChild, HostListener,
+  ElementRef, viewChild,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -31,9 +31,6 @@ export class CommentPanel implements OnChanges, OnDestroy {
 
   @Output() closed = new EventEmitter<void>();
   @Output() commentCountChange = new EventEmitter<number>();
-
-  @HostListener('document:keydown.escape')
-  onEscape() { if (this.visible) this.closed.emit(); }
 
   comments: any[] = [];
   newComment = '';

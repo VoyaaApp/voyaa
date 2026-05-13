@@ -39,9 +39,6 @@ export class Chat implements OnInit, OnDestroy, AfterViewChecked {
   newMessage = '';
   loading = true;
   isBlockedConversation = false;
-  sending = false;
-  sendError = false;
-  loadError = false;
   private unsubscribe: (() => void) | null = null;
   private shouldScroll = false;
   private markedRead = false;
@@ -102,11 +99,7 @@ export class Chat implements OnInit, OnDestroy, AfterViewChecked {
         }
       }
       this.cdr.detectChanges();
-    } catch {
-      this.loadError = true;
-      this.loading = false;
-      this.cdr.detectChanges();
-    }
+    } catch {}
   }
 
   private loadMessages() {
@@ -139,8 +132,6 @@ export class Chat implements OnInit, OnDestroy, AfterViewChecked {
     if (!uid) return;
 
     this.newMessage = '';
-    this.sending = true;
-    this.cdr.detectChanges();
 
     try {
       await addDoc(collection(db, 'conversations', this.conversationId, 'messages'), {
@@ -167,14 +158,7 @@ export class Chat implements OnInit, OnDestroy, AfterViewChecked {
         this.shouldScroll = true;
         this.cdr.detectChanges();
       }
-    } catch {
-      this.sendError = true;
-      this.cdr.detectChanges();
-      setTimeout(() => { this.sendError = false; this.cdr.detectChanges(); }, 3000);
-    } finally {
-      this.sending = false;
-      this.cdr.detectChanges();
-    }
+    } catch {}
   }
 
   private async markAsRead() {

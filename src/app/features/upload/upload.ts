@@ -1,4 +1,4 @@
-import { Component, OnDestroy, inject, ChangeDetectorRef } from '@angular/core';
+import { Component, OnDestroy, inject, ChangeDetectorRef, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { Location } from '@angular/common';
@@ -21,6 +21,7 @@ interface LocationSuggestion {
   imports: [FormsModule],
   templateUrl: './upload.html',
   styleUrl: './upload.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class Upload implements OnDestroy {
   private router = inject(Router);
@@ -40,7 +41,6 @@ export class Upload implements OnDestroy {
   uploadProgress = 0;
   uploadStatus = '';
   errorMessage = '';
-  showSuccessToast = false;
 
   // Location autocomplete
   locationQuery = '';
@@ -220,12 +220,10 @@ export class Upload implements OnDestroy {
         createdAt: new Date().toISOString(),
       });
 
-      this.isUploading = false;
-      this.showSuccessToast = true;
-      this.cdr.detectChanges();
-      setTimeout(() => this.router.navigate(['/feed']), 1500);
+      this.router.navigate(['/feed']);
     } catch (error: any) {
       this.errorMessage = error.message || 'Something went wrong.';
+    } finally {
       this.isUploading = false;
       this.cdr.detectChanges();
     }

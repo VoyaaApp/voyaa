@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, ChangeDetectionStrategy, ChangeDetectorRef, inject, HostListener } from '@angular/core';
+import { Component, Input, Output, EventEmitter, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { TripService, Trip, WISHLIST_ID } from '../../../core/services/trip.service';
 
@@ -294,9 +294,6 @@ export class TripPicker {
   @Output() selected = new EventEmitter<string>();
   @Output() closed = new EventEmitter<void>();
   @Output() tripCreated = new EventEmitter<Trip>();
-
-  @HostListener('document:keydown.escape')
-  onEscape() { if (this.visible) this.closed.emit(); }
 
   wishlistId = WISHLIST_ID;
   selectedTripId = WISHLIST_ID;

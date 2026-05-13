@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, inject, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, ChangeDetectorRef, ChangeDetectionStrategy } from '@angular/core';
 import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { collection, query, where, orderBy, onSnapshot, getDocs, doc, getDoc, addDoc, serverTimestamp } from 'firebase/firestore';
@@ -23,6 +23,7 @@ interface Conversation {
   imports: [FormsModule],
   templateUrl: './messages.html',
   styleUrl: './messages.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class Messages implements OnInit, OnDestroy {
   private router = inject(Router);
@@ -127,10 +128,7 @@ export class Messages implements OnInit, OnDestroy {
         .filter((u: any) => u.uid !== uid && u.username?.toLowerCase().includes(q))
         .slice(0, 10);
       this.cdr.detectChanges();
-    } catch {
-      this.searchResults = [];
-      this.cdr.detectChanges();
-    }
+    } catch {}
   }
 
   async startConversation(recipientId: string) {

@@ -16,7 +16,6 @@ import { RouterLink } from '@angular/router';
 export class Activity implements OnInit {
   notifications: any[] = [];
   loading = true;
-  loadError = false;
   timeAgo = timeAgo;
 
   authService = inject(AuthService);
@@ -31,37 +30,26 @@ export class Activity implements OnInit {
     await this.loadNotifications();
   }
 
-  async retryLoad() {
-    this.loadError = false;
-    this.loading = true;
-    this.cdr.detectChanges();
-    await this.loadNotifications();
-  }
-
   // ── Notifications ──
 
   private async loadNotifications() {
     const uid = this.authService.currentUser()?.uid;
     if (!uid) return;
 
-    try {
-      const q = query(
-        collection(db, 'users', uid, 'notifications'),
-        orderBy('createdAt', 'desc')
-      );
-      const snapshot = await getDocs(q);
-      this.notifications = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    const q = query(
+      collection(db, 'users', uid, 'notifications'),
+      orderBy('createdAt', 'desc')
+    );
+    const snapshot = await getDocs(q);
+    this.notifications = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
 
-      const unread = this.notifications.filter(n => !n.read);
-      if (unread.length > 0) {
-        const batch = writeBatch(db);
-        for (const notif of unread) {
-          batch.update(doc(db, 'users', uid, 'notifications', notif.id), { read: true });
-        }
-        await batch.commit();
+    const unread = this.notifications.filter(n => !n.read);
+    if (unread.length > 0) {
+      const batch = writeBatch(db);
+      for (const notif of unread) {
+        batch.update(doc(db, 'users', uid, 'notifications', notif.id), { read: true });
       }
-    } catch {
-      this.loadError = true;
+      await batch.commit();
     }
 
     this.loading = false;
@@ -90,16 +78,12 @@ export class Activity implements OnInit {
     const uid = this.authService.currentUser()?.uid;
     if (!uid) return;
 
-    try {
-      const batch = writeBatch(db);
-      for (const notif of this.notifications) {
-        batch.delete(doc(db, 'users', uid, 'notifications', notif.id));
-      }
-      await batch.commit();
-      this.notifications = [];
-    } catch {
-      // Silently fail — notifications still visible
+    const batch = writeBatch(db);
+    for (const notif of this.notifications) {
+      batch.delete(doc(db, 'users', uid, 'notifications', notif.id));
     }
+    await batch.commit();
+    this.notifications = [];
     this.cdr.detectChanges();
   }
 

@@ -1,4 +1,4 @@
-import { Component, OnDestroy, inject, ChangeDetectorRef, viewChild, ElementRef } from '@angular/core';
+import { Component, OnDestroy, inject, ChangeDetectorRef, ChangeDetectionStrategy, viewChild, ElementRef } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { Location } from '@angular/common';
@@ -27,6 +27,7 @@ interface ImageItem {
   imports: [FormsModule, ImageEditor],
   templateUrl: './upload-image.html',
   styleUrl: './upload-image.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class UploadImage implements OnDestroy {
   private router = inject(Router);
@@ -44,7 +45,6 @@ export class UploadImage implements OnDestroy {
   uploadProgress = 0;
   uploadStatus = '';
   errorMessage = '';
-  showSuccessToast = false;
 
   // Location
   locationQuery = '';
@@ -356,12 +356,10 @@ export class UploadImage implements OnDestroy {
         createdAt: new Date().toISOString(),
       });
 
-      this.isUploading = false;
-      this.showSuccessToast = true;
-      this.cdr.detectChanges();
-      setTimeout(() => this.router.navigate(['/profile']), 1500);
+      this.router.navigate(['/profile']);
     } catch (error: any) {
       this.errorMessage = error.message || 'Something went wrong.';
+    } finally {
       this.isUploading = false;
       this.cdr.detectChanges();
     }

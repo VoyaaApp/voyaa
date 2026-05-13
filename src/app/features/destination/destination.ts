@@ -1,4 +1,4 @@
-import { Component, OnInit, AfterViewInit, OnDestroy, inject, ChangeDetectorRef, ElementRef } from '@angular/core';
+import { Component, OnInit, AfterViewInit, OnDestroy, inject, ChangeDetectorRef, ChangeDetectionStrategy, ElementRef } from '@angular/core';
 import { Location } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
@@ -13,7 +13,7 @@ import { ConfirmDialog } from '../../shared/components/confirm-dialog/confirm-di
 import { TripPicker } from '../../shared/components/trip-picker/trip-picker';
 import { TripService, Trip, WISHLIST_ID } from '../../core/services/trip.service';
 import { timeAgo } from '../../shared/utils/time';
-import { formatCount } from '../../shared/utils/format';
+import { formatCount, getThumbUrl } from '../../shared/utils/format';
 import { sharePost } from '../../shared/utils/share';
 
 @Component({
@@ -21,6 +21,7 @@ import { sharePost } from '../../shared/utils/share';
   imports: [CommentPanel, PostCard, RouterLink, ReportPanel, ConfirmDialog, TripPicker],
   templateUrl: './destination.html',
   styleUrl: './destination.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class Destination implements OnInit, AfterViewInit, OnDestroy {
   private route = inject(ActivatedRoute);
@@ -37,16 +38,10 @@ export class Destination implements OnInit, AfterViewInit, OnDestroy {
   city = '';
   feedItems: any[] = [];
   loading = true;
-  loadError = false;
   timeAgo = timeAgo;
   formatCount = formatCount;
 
-  getThumbUrl(url: string): string {
-    if (!url) return '';
-    return url
-      .replace('/video/upload/', '/video/upload/so_0,w_400,h_500,c_fill,q_auto,f_auto/')
-      .replace(/\.[^.]+$/, '.jpg');
-  }
+  getThumbUrl = getThumbUrl;
 
   getPostImages(item: any): string[] {
     if (item._type === 'video') {
@@ -100,14 +95,7 @@ export class Destination implements OnInit, AfterViewInit, OnDestroy {
       this.router.navigate(['/explore']);
       return;
     }
-    await this.loadContent();
-  }
 
-  async loadContent() {
-    this.loadError = false;
-    this.loading = true;
-    this.cdr.detectChanges();
-    try {
     await this.blockService.ensureLoaded();
 
     // Fetch both collections filtered by country
@@ -166,11 +154,6 @@ export class Destination implements OnInit, AfterViewInit, OnDestroy {
     this.loading = false;
     this.cdr.detectChanges();
     setTimeout(() => this.setupVideoObserver());
-    } catch {
-      this.loadError = true;
-      this.loading = false;
-      this.cdr.detectChanges();
-    }
   }
 
   ngAfterViewInit() {
@@ -353,35 +336,11 @@ export class Destination implements OnInit, AfterViewInit, OnDestroy {
     this.showBlockConfirm = false;
   }
 
-  // Delete confirmation
-  showDeleteConfirm = false;
-  pendingDeleteItem: any = null;
-  deleteError = false;
-
-  deleteVideo(item: any) {
-    this.pendingDeleteItem = item;
-    this.showDeleteConfirm = true;
+  async deleteVideo(item: any) {
+    if (!confirm('Delete this video?')) return;
+    const { deleteDoc, doc: fbDoc } = await import('firebase/firestore');
+    await deleteDoc(fbDoc(db, 'videos', item.id));
+    this.feedItems = this.feedItems.filter(i => i.id !== item.id);
     this.cdr.detectChanges();
-  }
-
-  async doDeleteVideo() {
-    this.showDeleteConfirm = false;
-    const item = this.pendingDeleteItem;
-    if (!item) return;
-    try {
-      const { deleteDoc, doc: fbDoc } = await import('firebase/firestore');
-      await deleteDoc(fbDoc(db, 'videos', item.id));
-      this.feedItems = this.feedItems.filter(i => i.id !== item.id);
-    } catch {
-      this.deleteError = true;
-      setTimeout(() => { this.deleteError = false; this.cdr.detectChanges(); }, 3000);
-    }
-    this.pendingDeleteItem = null;
-    this.cdr.detectChanges();
-  }
-
-  cancelDeleteVideo() {
-    this.showDeleteConfirm = false;
-    this.pendingDeleteItem = null;
   }
 }

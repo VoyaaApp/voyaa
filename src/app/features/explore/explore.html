@@ -20,9 +20,9 @@
   </div>
 
   <!-- ── Tabs ── -->
-  <div class="chip-bar" role="tablist" aria-label="Content filters">
+  <div class="chip-bar">
     @for (tab of tabs; track tab) {
-      <button class="chip" role="tab" [attr.aria-selected]="activeTab === tab" [class.active]="activeTab === tab" (click)="selectTab(tab)">
+      <button class="chip" [class.active]="activeTab === tab" (click)="selectTab(tab)">
         {{ tab }}
       </button>
     }
@@ -40,13 +40,6 @@
 
   <!-- ── Content ── -->
   <div class="section">
-    @if (loadError) {
-      <div class="feed-state">
-        <span class="material-symbols-rounded">wifi_off</span>
-        <p>Couldn't load content</p>
-        <button class="retry-btn" (click)="loadContent()">Try again</button>
-      </div>
-    } @else {
     <div class="section-header">
       <span class="material-symbols-rounded section-icon" [class.trending-icon]="activeTab === 'Trending'">
         {{ tabIcon }}
@@ -136,23 +129,23 @@
                   <span class="fc-time">{{ timeAgo(video.createdAt) }}</span>
                 </div>
                 <div class="fc-actions">
-                  <button class="fc-action" [class.liked]="video.liked" (click)="toggleFollowingLike(video)" aria-label="Like">
+                  <button class="fc-action" [class.liked]="video.liked" (click)="toggleFollowingLike(video)">
                     <span class="material-symbols-rounded">{{ video.liked ? 'favorite' : 'favorite_border' }}</span>
                     <span class="fc-count">{{ formatCount(video.likeCount) }}</span>
                   </button>
-                  <button class="fc-action" (click)="openComments(video)" aria-label="Comments">
+                  <button class="fc-action" (click)="openComments(video)">
                     <span class="material-symbols-rounded">chat_bubble</span>
                     <span class="fc-count">{{ formatCount(video.commentCount) }}</span>
                   </button>
                   <button class="fc-action" (click)="onShare(video)" aria-label="Share post">
                     <span class="material-symbols-rounded">share</span>
                   </button>
-                  <button class="fc-action" [class.bookmarked]="video.bookmarked" (click)="toggleFollowingBookmark(video)" aria-label="Save">
+                  <button class="fc-action" [class.bookmarked]="video.bookmarked" (click)="toggleFollowingBookmark(video)">
                     <span class="material-symbols-rounded">{{ video.bookmarked ? 'bookmark' : 'bookmark_border' }}</span>
                   </button>
                   @if (authService.currentUser()?.uid) {
                     <div class="menu-wrapper">
-                      <button class="fc-action" (click)="video.showMenu = !video.showMenu" aria-label="More options">
+                      <button class="fc-action" (click)="video.showMenu = !video.showMenu">
                         <span class="material-symbols-rounded">more_horiz</span>
                       </button>
                       @if (video.showMenu) {
@@ -188,7 +181,6 @@
         <span class="material-symbols-rounded">{{ tabIcon }}</span>
         <p>{{ tabEmptyMessage }}</p>
       </div>
-    }
     }
   </div>
 </div>
@@ -252,17 +244,13 @@
 />
 
 <app-confirm-dialog
-  [visible]="showDeleteConfirm"
-  message="Delete this video? This can't be undone."
+  [visible]="showConfirm"
+  [message]="confirmMessage"
   confirmText="Delete"
   [destructive]="true"
-  (confirmed)="doDeleteVideo()"
-  (cancelled)="cancelDeleteVideo()"
+  (confirmed)="onConfirmed()"
+  (cancelled)="onCancelled()"
 />
-
-@if (deleteError) {
-  <div class="error-toast">Could not delete. Try again.</div>
-}
 
 <app-trip-picker
   [visible]="showTripPicker"
