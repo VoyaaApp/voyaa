@@ -33,6 +33,7 @@
   background: #111;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
   flex-shrink: 0;
+  touch-action: auto;
 }
 
 .tool-tabs {
@@ -186,12 +187,13 @@
     background: rgba(255, 255, 255, 0.1);
     border-radius: 2px;
     outline: none;
+    touch-action: auto;
 
     &::-webkit-slider-thumb {
       -webkit-appearance: none;
       appearance: none;
-      width: 18px;
-      height: 18px;
+      width: 22px;
+      height: 22px;
       border-radius: 50%;
       background: #3891a6;
       cursor: pointer;

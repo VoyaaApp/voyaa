@@ -125,19 +125,20 @@ export class ImageEditor implements AfterViewInit, OnChanges {
     el.height = drawH;
     this.displayScale = this.img.width / (isRotated ? drawH : drawW);
 
-    ctx.clearRect(0, 0, drawW, drawH);
-    ctx.save();
-
-    // Build filter string
+    // Build filter string for CSS filter (applied on the canvas element for universal browser support)
     let filterStr = this.editState.filter !== 'none' ? this.editState.filter : '';
     const adjustParts: string[] = [];
     if (this.editState.brightness !== 1) adjustParts.push(`brightness(${this.editState.brightness})`);
     if (this.editState.contrast !== 1) adjustParts.push(`contrast(${this.editState.contrast})`);
     if (this.editState.saturation !== 1) adjustParts.push(`saturate(${this.editState.saturation})`);
     if (adjustParts.length) filterStr = (filterStr ? filterStr + ' ' : '') + adjustParts.join(' ');
-    if (filterStr) ctx.filter = filterStr;
 
-    // Rotation
+    // Apply filter via CSS on the canvas element (works on all browsers including Safari)
+    el.style.filter = filterStr || '';
+
+    // Draw unfiltered image to canvas
+    ctx.clearRect(0, 0, drawW, drawH);
+    ctx.save();
     ctx.translate(drawW / 2, drawH / 2);
     ctx.rotate((rot * Math.PI) / 180);
     const rW = isRotated ? drawH : drawW;
@@ -147,79 +148,78 @@ export class ImageEditor implements AfterViewInit, OnChanges {
 
     // Draw crop overlay
     if (this.activeTab === 'crop') {
-      const s = this.editState;
-      const cx = s.cropX / this.displayScale;
-      const cy = s.cropY / this.displayScale;
-      const cw = s.cropW / this.displayScale;
-      const ch = s.cropH / this.displayScale;
-
-      // Dim area outside crop
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
-      ctx.fillRect(0, 0, drawW, cy);
-      ctx.fillRect(0, cy + ch, drawW, drawH - cy - ch);
-      ctx.fillRect(0, cy, cx, ch);
-      ctx.fillRect(cx + cw, cy, drawW - cx - cw, ch);
-
-      // Crop border
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(cx, cy, cw, ch);
-
-      // Grid lines (rule of thirds)
-      ctx.strokeStyle = 'rgba(255,255,255,0.25)';
-      ctx.lineWidth = 1;
-      for (let i = 1; i <= 2; i++) {
-        ctx.beginPath();
-        ctx.moveTo(cx + (cw * i) / 3, cy);
-        ctx.lineTo(cx + (cw * i) / 3, cy + ch);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(cx, cy + (ch * i) / 3);
-        ctx.lineTo(cx + cw, cy + (ch * i) / 3);
-        ctx.stroke();
-      }
-
-      // Corner handles (L-shaped brackets)
-      const hl = Math.min(20, cw / 4, ch / 4); // handle arm length
-      const inset = 1; // Inset so handles don't clip at canvas edges
-
-      // Draw handles with dark outline for visibility, then white on top
-      for (const pass of ['shadow', 'main'] as const) {
-        ctx.strokeStyle = pass === 'shadow' ? 'rgba(0,0,0,0.6)' : '#fff';
-        ctx.lineWidth = pass === 'shadow' ? 5 : 3;
-        ctx.lineCap = 'round';
-
-        // Top-left
-        ctx.beginPath();
-        ctx.moveTo(cx + inset, cy + hl);
-        ctx.lineTo(cx + inset, cy + inset);
-        ctx.lineTo(cx + hl, cy + inset);
-        ctx.stroke();
-
-        // Top-right
-        ctx.beginPath();
-        ctx.moveTo(cx + cw - hl, cy + inset);
-        ctx.lineTo(cx + cw - inset, cy + inset);
-        ctx.lineTo(cx + cw - inset, cy + hl);
-        ctx.stroke();
-
-        // Bottom-left
-        ctx.beginPath();
-        ctx.moveTo(cx + inset, cy + ch - hl);
-        ctx.lineTo(cx + inset, cy + ch - inset);
-        ctx.lineTo(cx + hl, cy + ch - inset);
-        ctx.stroke();
-
-        // Bottom-right
-        ctx.beginPath();
-        ctx.moveTo(cx + cw - hl, cy + ch - inset);
-        ctx.lineTo(cx + cw - inset, cy + ch - inset);
-        ctx.lineTo(cx + cw - inset, cy + ch - hl);
-        ctx.stroke();
-      }
+      this.drawCropOverlay(ctx, drawW, drawH);
     }
 
     this.cdr.detectChanges();
+  }
+
+  private drawCropOverlay(ctx: CanvasRenderingContext2D, drawW: number, drawH: number) {
+    const s = this.editState;
+    const cx = s.cropX / this.displayScale;
+    const cy = s.cropY / this.displayScale;
+    const cw = s.cropW / this.displayScale;
+    const ch = s.cropH / this.displayScale;
+
+    // Dim area outside crop
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+    ctx.fillRect(0, 0, drawW, cy);
+    ctx.fillRect(0, cy + ch, drawW, drawH - cy - ch);
+    ctx.fillRect(0, cy, cx, ch);
+    ctx.fillRect(cx + cw, cy, drawW - cx - cw, ch);
+
+    // Crop border
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(cx, cy, cw, ch);
+
+    // Grid lines (rule of thirds)
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+    ctx.lineWidth = 1;
+    for (let i = 1; i <= 2; i++) {
+      ctx.beginPath();
+      ctx.moveTo(cx + (cw * i) / 3, cy);
+      ctx.lineTo(cx + (cw * i) / 3, cy + ch);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(cx, cy + (ch * i) / 3);
+      ctx.lineTo(cx + cw, cy + (ch * i) / 3);
+      ctx.stroke();
+    }
+
+    // Corner handles (L-shaped brackets)
+    const hl = Math.min(20, cw / 4, ch / 4);
+    const inset = 1;
+
+    for (const pass of ['shadow', 'main'] as const) {
+      ctx.strokeStyle = pass === 'shadow' ? 'rgba(0,0,0,0.6)' : '#fff';
+      ctx.lineWidth = pass === 'shadow' ? 5 : 3;
+      ctx.lineCap = 'round';
+
+      ctx.beginPath();
+      ctx.moveTo(cx + inset, cy + hl);
+      ctx.lineTo(cx + inset, cy + inset);
+      ctx.lineTo(cx + hl, cy + inset);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(cx + cw - hl, cy + inset);
+      ctx.lineTo(cx + cw - inset, cy + inset);
+      ctx.lineTo(cx + cw - inset, cy + hl);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(cx + inset, cy + ch - hl);
+      ctx.lineTo(cx + inset, cy + ch - inset);
+      ctx.lineTo(cx + hl, cy + ch - inset);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(cx + cw - hl, cy + ch - inset);
+      ctx.lineTo(cx + cw - inset, cy + ch - inset);
+      ctx.lineTo(cx + cw - inset, cy + ch - hl);
+      ctx.stroke();
+    }
   }
 
   private generateFilterThumbs() {
@@ -233,14 +233,17 @@ export class ImageEditor implements AfterViewInit, OnChanges {
     this.filterThumbs = this.filters.map(f => {
       ctx.clearRect(0, 0, size, size);
       ctx.save();
-      if (f.filter !== 'none') ctx.filter = f.filter;
       const aspect = this.img.width / this.img.height;
       let sw = size, sh = size;
       if (aspect > 1) sh = size / aspect;
       else sw = size * aspect;
       ctx.drawImage(this.img, (size - sw) / 2, (size - sh) / 2, sw, sh);
       ctx.restore();
-      return fc.toDataURL('image/jpeg', 0.6);
+      // Apply filter via CSS on the canvas element (Safari-safe)
+      fc.style.filter = f.filter !== 'none' ? f.filter : '';
+      const url = fc.toDataURL('image/jpeg', 0.6);
+      fc.style.filter = '';
+      return url;
     });
     this.cdr.detectChanges();
   }

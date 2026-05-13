@@ -187,6 +187,7 @@ export class UploadImage implements OnDestroy {
 
   onSwipeMove(event: TouchEvent) {
     if (!this.isSwiping) return;
+    event.preventDefault();
     this.swipeDeltaX = event.touches[0].clientX - this.swipeStartX;
   }
 
