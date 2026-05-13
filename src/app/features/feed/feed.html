@@ -35,6 +35,8 @@
     @for (video of videos; track video.id; let i = $index) {
         <div class="video-card">
             <video #videoPlayer [src]="video.cloudinaryUrl" loop [muted]="isMuted" playsinline
+              [poster]="getThumbUrl(video.cloudinaryUrl)"
+              [preload]="i === 0 ? 'auto' : 'metadata'"
               (pointerdown)="onPointerDown($event, video)"
               (pointerup)="onPointerUp($event, video)"></video>
             <div class="overlay" (click)="$event.stopPropagation()">
@@ -123,6 +125,9 @@
               </div>
             }
         </div>
+    }
+    @if (!allLoaded) {
+      <div class="feed-sentinel"></div>
     }
 </div>
 }

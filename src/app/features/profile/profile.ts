@@ -14,7 +14,7 @@ import { PostCard } from '../../shared/components/post-card/post-card';
 import { timeAgo } from '../../shared/utils/time';
 import { sharePost } from '../../shared/utils/share';
 import { db, auth } from '../../core/services/firebase.service';
-import { collection, getDocs, query, where, doc, getDoc, updateDoc, deleteDoc, setDoc, increment, addDoc, onSnapshot } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, getDoc, updateDoc, deleteDoc, setDoc, increment, addDoc, onSnapshot, orderBy, limit, startAfter, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 import { environment } from '../../environments/environment';
 import { COUNTRY_FLAGS, COUNTRY_CODES, REGION_MAP, COUNTRY_COORDS } from '../../shared/data/geo';
 
@@ -103,6 +103,17 @@ export class Profile implements OnInit, OnDestroy {
   pauseIndicatorFading = false;
   isPaused = false;
 
+  // Grid pagination
+  private readonly GRID_PAGE_SIZE = 20;
+  private lastVideoDoc: QueryDocumentSnapshot<DocumentData> | null = null;
+  private lastPostDoc: QueryDocumentSnapshot<DocumentData> | null = null;
+  private videosExhausted = false;
+  private postsExhausted = false;
+  allGridLoaded = false;
+  loadingMoreGrid = false;
+  private gridSentinelObserver: IntersectionObserver | null = null;
+  private profileUserId: string | null = null;
+
   // User list (followers/following)
   showUserList = false;
   userListTitle = '';
@@ -139,6 +150,7 @@ export class Profile implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     this.viewerObserver?.disconnect();
+    this.gridSentinelObserver?.disconnect();
     this.unsubMessages?.();
     this.unsubNotifications?.();
     clearTimeout(this.pressTimer);
@@ -187,58 +199,140 @@ export class Profile implements OnInit, OnDestroy {
       });
     }
 
-    // Load user profile
+    // Load user profile — render immediately
     const userDoc = await getDoc(doc(db, 'users', userId));
     if (userDoc.exists()) {
       this.profileUser = { uid: userId, ...userDoc.data() };
       this.profileUser.followerCount = this.profileUser.followerCount || 0;
       this.profileUser.followingCount = this.profileUser.followingCount || 0;
     }
+    this.loading = false;
+    this.profileUserId = userId;
+    this.cdr.detectChanges();
 
-    // Load user's videos
-    const q = query(collection(db, 'videos'), where('userId', '==', userId));
-    const snapshot = await getDocs(q);
+    // Load first page of videos and posts in parallel
+    const videoQuery = query(collection(db, 'videos'), where('userId', '==', userId), orderBy('createdAt', 'desc'), limit(this.GRID_PAGE_SIZE));
+    const postQuery = query(collection(db, 'posts'), where('userId', '==', userId), orderBy('createdAt', 'desc'), limit(this.GRID_PAGE_SIZE));
+    const [snapshot, psnap] = await Promise.all([
+      getDocs(videoQuery),
+      getDocs(postQuery),
+    ]);
+
+    if (snapshot.docs.length < this.GRID_PAGE_SIZE) this.videosExhausted = true;
+    if (snapshot.docs.length > 0) this.lastVideoDoc = snapshot.docs[snapshot.docs.length - 1];
+    if (psnap.docs.length < this.GRID_PAGE_SIZE) this.postsExhausted = true;
+    if (psnap.docs.length > 0) this.lastPostDoc = psnap.docs[psnap.docs.length - 1];
+    this.allGridLoaded = this.videosExhausted && this.postsExhausted;
+
     this.videos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), liked: false, bookmarked: false, _type: 'video' }));
-    this.videos.sort((a: any, b: any) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-
-    // Load user's image posts
-    const pq = query(collection(db, 'posts'), where('userId', '==', userId));
-    const psnap = await getDocs(pq);
     this.posts = psnap.docs.map(doc => ({ id: doc.id, ...doc.data(), liked: false, _type: 'post' }));
 
     // Merge into grid items sorted by date
     this.gridItems = [...this.videos, ...this.posts]
       .sort((a: any, b: any) => (b.createdAt || '').localeCompare(a.createdAt || ''));
 
-    // Batch check likes for current user
+    this.computePassportData();
+    this.cdr.detectChanges();
+
+    // Set up sentinel observer for infinite scroll
+    requestAnimationFrame(() => this.setupGridSentinel());
+
+    // Batch check likes for current user (deferred — UI already visible)
     const currentUid = this.authService.currentUser()?.uid;
     if (currentUid) {
-      await Promise.all(this.videos.map(async (video) => {
-        const [likeDoc, bookmarkDoc] = await Promise.all([
-          getDoc(doc(db, 'videos', video.id, 'likes', currentUid)),
-          getDoc(doc(db, 'users', currentUid, 'bookmarks', video.id)),
-        ]);
-        video.liked = likeDoc.exists();
-        video.bookmarked = bookmarkDoc.exists();
-      }));
-
-      // Check post likes
-      await Promise.all(this.posts.map(async (post) => {
-        const likeDoc2 = await getDoc(doc(db, 'posts', post.id, 'likes', currentUid));
-        post.liked = likeDoc2.exists();
-      }));
+      this.loadGridInteractions(this.videos, this.posts, currentUid);
 
       // Check if following
       if (!this.isOwnProfile) {
         const followDoc = await getDoc(doc(db, 'users', userId, 'followers', currentUid));
         this.isFollowing = followDoc.exists();
         this.checkBlocked();
+        this.cdr.detectChanges();
       }
     }
+  }
 
-    this.loading = false;
+  async loadMoreGrid() {
+    if (this.allGridLoaded || this.loadingMoreGrid || !this.profileUserId) return;
+    this.loadingMoreGrid = true;
+
+    const fetches: Promise<any>[] = [];
+
+    if (!this.videosExhausted && this.lastVideoDoc) {
+      fetches.push(
+        getDocs(query(collection(db, 'videos'), where('userId', '==', this.profileUserId), orderBy('createdAt', 'desc'), startAfter(this.lastVideoDoc), limit(this.GRID_PAGE_SIZE)))
+      );
+    } else {
+      fetches.push(Promise.resolve(null));
+    }
+
+    if (!this.postsExhausted && this.lastPostDoc) {
+      fetches.push(
+        getDocs(query(collection(db, 'posts'), where('userId', '==', this.profileUserId), orderBy('createdAt', 'desc'), startAfter(this.lastPostDoc), limit(this.GRID_PAGE_SIZE)))
+      );
+    } else {
+      fetches.push(Promise.resolve(null));
+    }
+
+    const [videoSnap, postSnap] = await Promise.all(fetches);
+
+    if (videoSnap) {
+      if (videoSnap.docs.length < this.GRID_PAGE_SIZE) this.videosExhausted = true;
+      if (videoSnap.docs.length > 0) this.lastVideoDoc = videoSnap.docs[videoSnap.docs.length - 1];
+      const newVideos = videoSnap.docs.map((d: any) => ({ id: d.id, ...d.data(), liked: false, bookmarked: false, _type: 'video' }));
+      this.videos = [...this.videos, ...newVideos];
+    }
+
+    if (postSnap) {
+      if (postSnap.docs.length < this.GRID_PAGE_SIZE) this.postsExhausted = true;
+      if (postSnap.docs.length > 0) this.lastPostDoc = postSnap.docs[postSnap.docs.length - 1];
+      const newPosts = postSnap.docs.map((d: any) => ({ id: d.id, ...d.data(), liked: false, _type: 'post' }));
+      this.posts = [...this.posts, ...newPosts];
+    }
+
+    this.allGridLoaded = this.videosExhausted && this.postsExhausted;
+    this.gridItems = [...this.videos, ...this.posts]
+      .sort((a: any, b: any) => (b.createdAt || '').localeCompare(a.createdAt || ''));
     this.computePassportData();
+    this.loadingMoreGrid = false;
     this.cdr.detectChanges();
+
+    // Defer interaction checks for new items
+    const currentUid = this.authService.currentUser()?.uid;
+    if (currentUid) {
+      const newVids = videoSnap ? videoSnap.docs.map((d: any) => this.videos.find((v: any) => v.id === d.id)).filter(Boolean) : [];
+      const newPosts = postSnap ? postSnap.docs.map((d: any) => this.posts.find((p: any) => p.id === d.id)).filter(Boolean) : [];
+      this.loadGridInteractions(newVids, newPosts, currentUid);
+    }
+  }
+
+  private loadGridInteractions(videos: any[], posts: any[], currentUid: string) {
+    Promise.all([
+      ...videos.map(async (video) => {
+        const [likeDoc, bookmarkDoc] = await Promise.all([
+          getDoc(doc(db, 'videos', video.id, 'likes', currentUid)),
+          getDoc(doc(db, 'users', currentUid, 'bookmarks', video.id)),
+        ]);
+        video.liked = likeDoc.exists();
+        video.bookmarked = bookmarkDoc.exists();
+      }),
+      ...posts.map(async (post) => {
+        const likeDoc2 = await getDoc(doc(db, 'posts', post.id, 'likes', currentUid));
+        post.liked = likeDoc2.exists();
+      }),
+    ]).then(() => this.cdr.detectChanges());
+  }
+
+  private setupGridSentinel() {
+    this.gridSentinelObserver?.disconnect();
+    const sentinel = document.querySelector('.grid-sentinel');
+    if (!sentinel) return;
+    this.gridSentinelObserver = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting) {
+        this.loadMoreGrid();
+      }
+    }, { threshold: 0.1 });
+    this.gridSentinelObserver.observe(sentinel);
   }
 
   private computePassportData() {

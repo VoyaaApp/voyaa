@@ -64,6 +64,8 @@ export class Globe implements OnInit, OnDestroy {
   private map: any = null;
   private markers: { marker: any; country: string; city: string; type: 'city' | 'country' }[] = [];
 
+  private static cache: { destinations: Destination[]; cityMarkers: CityMarker[]; countryMarkers: CountryMarker[] } | null = null;
+
   getThumbUrl = getThumbUrl;
 
   getThumbnail(item: { thumbnail: string; thumbnailType: 'video' | 'image' }): string {
@@ -91,6 +93,17 @@ export class Globe implements OnInit, OnDestroy {
   }
 
   async ngOnInit() {
+    // Use cached data if available (repeat visits are instant)
+    if (Globe.cache) {
+      this.destinations = Globe.cache.destinations;
+      this.cityMarkers = Globe.cache.cityMarkers;
+      this.countryMarkers = Globe.cache.countryMarkers;
+      this.filteredDestinations = this.destinations;
+      this.cdr.detectChanges();
+      setTimeout(() => this.initMap(), 50);
+      return;
+    }
+
     const [videoSnap, postSnap] = await Promise.all([
       getDocs(collection(db, 'videos')),
       getDocs(collection(db, 'posts')),
@@ -172,9 +185,9 @@ export class Globe implements OnInit, OnDestroy {
       };
     });
 
-    // Geocode cities that lack stored coordinates
+    // Geocode cities that lack stored coordinates (parallel)
     const toGeocode = this.cityMarkers.filter(cm => !cm.lat && !cm.lon);
-    for (const cm of toGeocode) {
+    await Promise.all(toGeocode.map(async (cm) => {
       const coords = await this.geocodeCity(cm.city, cm.country);
       if (coords) {
         cm.lat = coords[0];
@@ -186,9 +199,17 @@ export class Globe implements OnInit, OnDestroy {
           cm.lon = fallback[1];
         }
       }
-    }
+    }));
 
     this.filteredDestinations = this.destinations;
+
+    // Cache for repeat visits
+    Globe.cache = {
+      destinations: this.destinations,
+      cityMarkers: this.cityMarkers,
+      countryMarkers: this.countryMarkers,
+    };
+
     this.cdr.detectChanges();
 
     setTimeout(() => this.initMap(), 50);

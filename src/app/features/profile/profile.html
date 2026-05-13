@@ -333,6 +333,9 @@
           </div>
         }
       </div>
+      @if (!allGridLoaded) {
+        <div class="grid-sentinel"></div>
+      }
     }
 
     @if (activeTab === 'saved') {

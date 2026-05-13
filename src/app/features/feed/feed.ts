@@ -1,12 +1,12 @@
-import { Component, AfterViewInit, OnDestroy, ElementRef, viewChildren, viewChild, HostListener, inject, ChangeDetectorRef } from '@angular/core';
-import { collection, getDocs, orderBy, query, doc, getDoc, updateDoc, increment } from 'firebase/firestore';
+import { Component, OnInit, AfterViewInit, OnDestroy, ElementRef, viewChildren, viewChild, HostListener, inject, ChangeDetectorRef } from '@angular/core';
+import { collection, getDocs, orderBy, query, doc, getDoc, updateDoc, increment, limit, startAfter, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 import { db } from '../../core/services/firebase.service';
 import { AuthService } from '../../core/services/auth.service';
 import { InteractionService } from '../../core/services/interaction.service';
 import { BlockService } from '../../core/services/block.service';
 import { CommentPanel } from '../../shared/components/comment-panel/comment-panel';
 import { timeAgo } from '../../shared/utils/time';
-import { formatCount } from '../../shared/utils/format';
+import { formatCount, getThumbUrl } from '../../shared/utils/format';
 import { sharePost } from '../../shared/utils/share';
 import { RouterLink } from '@angular/router';
 import { TopBar } from '../../shared/components/top-bar/top-bar';
@@ -21,9 +21,10 @@ import { TripService, Trip, WISHLIST_ID } from '../../core/services/trip.service
   templateUrl: './feed.html',
   styleUrl: './feed.scss',
 })
-export class Feed implements AfterViewInit, OnDestroy {
+export class Feed implements OnInit, AfterViewInit, OnDestroy {
   videos: any[] = [];
-  isMuted = false;
+  isMuted = true;
+  getThumbUrl = getThumbUrl;
   showMuteIndicator = false;
   muteIndicatorFading = false;
   showPauseIndicator = false;
@@ -46,6 +47,13 @@ export class Feed implements AfterViewInit, OnDestroy {
   isRefreshing = false;
   private touchStartY = 0;
 
+  // Pagination
+  private readonly PAGE_SIZE = 5;
+  private lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
+  allLoaded = false;
+  loadingMore = false;
+  private sentinelObserver: IntersectionObserver | null = null;
+
   videoElements = viewChildren<ElementRef>('videoPlayer');
   feedContainer = viewChild<ElementRef>('feedContainer');
 
@@ -61,16 +69,28 @@ export class Feed implements AfterViewInit, OnDestroy {
   trips: Trip[] = [];
   private pendingBookmarkVideo: any = null;
 
-  ngAfterViewInit() {
+  ngOnInit() {
     this.loadVideos();
   }
+
+  ngAfterViewInit() {}
 
   async loadVideos() {
     this.loadError = false;
     try {
     await this.blockService.ensureLoaded();
-    const q = query(collection(db, 'videos'), orderBy('createdAt', 'desc'));
+    this.lastDoc = null;
+    this.allLoaded = false;
+    const q = query(collection(db, 'videos'), orderBy('createdAt', 'desc'), limit(this.PAGE_SIZE));
     const snapshot = await getDocs(q);
+
+    if (snapshot.docs.length < this.PAGE_SIZE) {
+      this.allLoaded = true;
+    }
+    if (snapshot.docs.length > 0) {
+      this.lastDoc = snapshot.docs[snapshot.docs.length - 1];
+    }
+
     this.videos = snapshot.docs
       .map(doc => ({ id: doc.id, ...doc.data(), liked: false, bookmarked: false, username: '', photoURL: '', following: false }) as any)
       .filter((v: any) => !this.blockService.isBlocked(v.userId));
@@ -94,22 +114,6 @@ export class Feed implements AfterViewInit, OnDestroy {
       }
     }
 
-    // Batch like + follow checks in parallel
-    if (userId) {
-      await Promise.all(this.videos.map(async (video) => {
-        const [likeDoc, bookmarkDoc] = await Promise.all([
-          getDoc(doc(db, 'videos', video.id, 'likes', userId)),
-          getDoc(doc(db, 'users', userId, 'bookmarks', video.id)),
-        ]);
-        video.liked = likeDoc.exists();
-        video.bookmarked = bookmarkDoc.exists();
-        if (video.userId !== userId) {
-          const followDoc = await getDoc(doc(db, 'users', video.userId, 'followers', userId));
-          video.following = followDoc.exists();
-        }
-      }));
-    }
-
     this.loading = false;
     this.cdr.detectChanges();
 
@@ -118,14 +122,106 @@ export class Feed implements AfterViewInit, OnDestroy {
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
         this.setupObserver();
+        this.setupSentinelObserver();
       });
     });
+    }
+
+    // Defer interaction checks — videos are already visible
+    if (userId) {
+      this.loadInteractions(this.videos, userId);
     }
     } catch (err) {
       this.loading = false;
       this.loadError = true;
       this.cdr.detectChanges();
     }
+  }
+
+  async loadMore() {
+    if (this.allLoaded || this.loadingMore || !this.lastDoc) return;
+    this.loadingMore = true;
+
+    const q = query(
+      collection(db, 'videos'),
+      orderBy('createdAt', 'desc'),
+      startAfter(this.lastDoc),
+      limit(this.PAGE_SIZE)
+    );
+    const snapshot = await getDocs(q);
+
+    if (snapshot.docs.length < this.PAGE_SIZE) {
+      this.allLoaded = true;
+    }
+    if (snapshot.docs.length > 0) {
+      this.lastDoc = snapshot.docs[snapshot.docs.length - 1];
+    }
+
+    const newVideos = snapshot.docs
+      .map(doc => ({ id: doc.id, ...doc.data(), liked: false, bookmarked: false, username: '', photoURL: '', following: false }) as any)
+      .filter((v: any) => !this.blockService.isBlocked(v.userId));
+
+    // Fetch user data for new videos
+    const userIds = [...new Set(newVideos.map((v: any) => v.userId))];
+    const userCache = new Map<string, any>();
+    await Promise.all(userIds.map(async (uid) => {
+      const userDoc = await getDoc(doc(db, 'users', uid));
+      if (userDoc.exists()) userCache.set(uid, userDoc.data());
+    }));
+    for (const video of newVideos) {
+      const userData = userCache.get(video.userId);
+      if (userData) {
+        video.username = userData['username'];
+        video.photoURL = userData['photoURL'] || '';
+      }
+    }
+
+    this.videos = [...this.videos, ...newVideos];
+    this.loadingMore = false;
+    this.cdr.detectChanges();
+
+    // Observe new video elements for autoplay
+    requestAnimationFrame(() => {
+      const allEls = this.videoElements();
+      const newEls = allEls.slice(allEls.length - newVideos.length);
+      newEls.forEach(el => this.observer?.observe(el.nativeElement));
+    });
+
+    // Defer interaction checks for new batch
+    const userId = this.authService.currentUser()?.uid;
+    if (userId) {
+      this.loadInteractions(newVideos, userId);
+    }
+  }
+
+  private loadInteractions(videos: any[], userId: string) {
+    Promise.all(videos.map(async (video) => {
+      const [likeDoc, bookmarkDoc] = await Promise.all([
+        getDoc(doc(db, 'videos', video.id, 'likes', userId)),
+        getDoc(doc(db, 'users', userId, 'bookmarks', video.id)),
+      ]);
+      video.liked = likeDoc.exists();
+      video.bookmarked = bookmarkDoc.exists();
+      if (video.userId !== userId) {
+        const followDoc = await getDoc(doc(db, 'users', video.userId, 'followers', userId));
+        video.following = followDoc.exists();
+      }
+    })).then(() => this.cdr.detectChanges());
+  }
+
+  private setupSentinelObserver() {
+    this.sentinelObserver?.disconnect();
+    const container = this.feedContainer()?.nativeElement;
+    if (!container) return;
+    const sentinel = container.querySelector('.feed-sentinel');
+    if (!sentinel) return;
+
+    this.sentinelObserver = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting) {
+        this.loadMore();
+      }
+    }, { threshold: 0.1 });
+    this.sentinelObserver.observe(sentinel);
   }
 
   async toggleFollow(video: any) {
@@ -220,6 +316,7 @@ export class Feed implements AfterViewInit, OnDestroy {
 
   ngOnDestroy() {
     this.observer?.disconnect();
+    this.sentinelObserver?.disconnect();
     clearTimeout(this.pressTimer);
     clearTimeout(this.tapTimer);
   }
