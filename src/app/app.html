@@ -1,3 +1,15 @@
+@if (isOffline()) {
+  <div class="offline-banner" aria-live="assertive">
+    <span class="material-symbols-rounded">cloud_off</span>
+    You're offline. Some features may not work.
+  </div>
+}
+@if (authService.currentUser() && !authService.currentUser()!.emailVerified && showVerifyBanner()) {
+  <div class="verify-banner" aria-live="polite">
+    <span>Please verify your email address.</span>
+    <button (click)="dismissVerifyBanner()" aria-label="Dismiss">✕</button>
+  </div>
+}
 <router-outlet></router-outlet>
 @if (authService.currentUser()) {
   <app-bottom-nav></app-bottom-nav>

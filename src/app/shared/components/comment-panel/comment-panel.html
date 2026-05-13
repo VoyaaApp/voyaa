@@ -1,0 +1,117 @@
+<app-confirm-dialog
+  [visible]="showConfirm"
+  [message]="confirmMessage"
+  confirmText="Delete"
+  [destructive]="true"
+  (confirmed)="onConfirmed()"
+  (cancelled)="onCancelled()"
+/>
+
+@if (visible) {
+  <div class="comments-backdrop" (click)="close()"></div>
+  <div class="comments-panel">
+    <div class="comments-header">
+      <h3>Comments</h3>
+      <button class="close-btn" (click)="close()">
+        <span class="material-symbols-rounded">close</span>
+      </button>
+    </div>
+    <div class="comments-list">
+      @for (comment of comments; track comment.id) {
+        <div class="comment-thread">
+          <div class="comment">
+            <div class="comment-avatar">
+              @if (comment.photoURL) {
+                <img [src]="comment.photoURL" alt="">
+              } @else {
+                <span class="material-symbols-rounded">account_circle</span>
+              }
+            </div>
+            <div class="comment-body">
+              <div class="comment-top">
+                <a class="comment-user" [routerLink]="['/profile', comment.userId]">{{ comment.username }}</a>
+                <span class="comment-time">{{ timeAgo(comment.createdAt) }}</span>
+                <div class="comment-actions">
+                  <button class="comment-action-btn" [class.liked]="comment.liked" (click)="toggleCommentLike(comment)">
+                    <span class="material-symbols-rounded">{{ comment.liked ? 'favorite' : 'favorite_border' }}</span>
+                    @if (comment.likeCount) { <span>{{ comment.likeCount }}</span> }
+                  </button>
+                  <button class="comment-action-btn" (click)="startReply(comment)">
+                    <span class="material-symbols-rounded">reply</span>
+                  </button>
+                  @if (comment.userId === currentUid) {
+                    <button class="comment-action-btn delete-btn" (click)="deleteComment(comment)">
+                      <span class="material-symbols-rounded">close</span>
+                    </button>
+                  }
+                </div>
+              </div>
+              <span class="comment-text">{{ comment.text }}</span>
+            </div>
+          </div>
+          @if (comment.replyCount > 0) {
+            <button class="toggle-replies" (click)="comment.showReplies = !comment.showReplies">
+              <span class="material-symbols-rounded">{{ comment.showReplies ? 'expand_less' : 'expand_more' }}</span>
+              {{ comment.showReplies ? 'Hide' : 'View' }} {{ comment.replyCount }} {{ comment.replyCount === 1 ? 'reply' : 'replies' }}
+            </button>
+          }
+          @if (comment.showReplies) {
+            @for (reply of comment.replies; track reply.id) {
+              <div class="comment reply">
+                <div class="comment-avatar">
+                  @if (reply.photoURL) {
+                    <img [src]="reply.photoURL" alt="">
+                  } @else {
+                    <span class="material-symbols-rounded">account_circle</span>
+                  }
+                </div>
+                <div class="comment-body">
+                  <div class="comment-top">
+                    <a class="comment-user" [routerLink]="['/profile', reply.userId]">{{ reply.username }}</a>
+                    <span class="comment-time">{{ timeAgo(reply.createdAt) }}</span>
+                    <div class="comment-actions">
+                      <button class="comment-action-btn" [class.liked]="reply.liked" (click)="toggleCommentLike(reply)">
+                        <span class="material-symbols-rounded">{{ reply.liked ? 'favorite' : 'favorite_border' }}</span>
+                        @if (reply.likeCount) { <span>{{ reply.likeCount }}</span> }
+                      </button>
+                      @if (reply.userId === currentUid) {
+                        <button class="comment-action-btn delete-btn" (click)="deleteComment(reply)">
+                          <span class="material-symbols-rounded">close</span>
+                        </button>
+                      }
+                    </div>
+                  </div>
+                  <span class="comment-text">{{ reply.text }}</span>
+                </div>
+              </div>
+            }
+          }
+        </div>
+      }
+      @if (comments.length === 0) {
+        <p class="no-comments">No comments yet. Be the first!</p>
+      }
+    </div>
+    <div class="comment-input">
+      @if (replyingTo) {
+        <div class="reply-indicator">
+          <span>Replying to <strong>{{ replyingTo.username }}</strong></span>
+          <button (click)="cancelReply()">
+            <span class="material-symbols-rounded">close</span>
+          </button>
+        </div>
+      }
+      @if (commentError) {
+        <p class="comment-error">{{ commentError }}</p>
+      }
+      <div class="input-row">
+        <input #commentInput type="text" [(ngModel)]="newComment"
+          [placeholder]="replyingTo ? 'Write a reply...' : 'Add a comment...'"
+          (keyup.enter)="postComment()">
+        <button (click)="postComment()" [disabled]="!newComment.trim()">
+          <span class="material-symbols-rounded">send</span>
+        </button>
+      </div>
+    </div>
+  </div>
+}

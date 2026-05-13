@@ -3,7 +3,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 100vh;
+  min-height: 100vh;
   background: radial-gradient(ellipse at top right, rgba(56, 145, 166, 0.15) 0%, transparent 50%),
             radial-gradient(ellipse at bottom left, rgba(126, 200, 164, 0.15) 0%, transparent 50%),
             #0a0a0a;
@@ -71,10 +71,40 @@
     text-align: center;
   }
 
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .char-hint {
+    font-size: 11px;
+    color: #555;
+    padding-left: 2px;
+  }
+
+  .field-error {
+    font-size: 12px;
+    color: #3891a6;
+    padding-left: 2px;
+  }
+
+  .forgot {
+    color: #888;
+    font-size: 13px;
+    margin-top: 16px;
+
+    a {
+      color: #7ec8a4;
+      text-decoration: none;
+      font-weight: 500;
+    }
+  }
+
   .switch {
     color: #888;
     font-size: 13px;
-    margin-top: 24px;
+    margin-top: 12px;
 
     a {
       color: #7ec8a4;
@@ -99,9 +129,12 @@
     .toggle-pw {
       position: absolute;
       right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
       background: none;
       border: none;
       padding: 0;
+      margin: 0;
       cursor: pointer;
       display: flex;
       align-items: center;

@@ -2,17 +2,25 @@ import { Component, inject, OnInit, OnDestroy, ChangeDetectorRef, ElementRef, vi
 import { Router, ActivatedRoute, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../core/services/auth.service';
+import { InteractionService } from '../../core/services/interaction.service';
+import { BlockService } from '../../core/services/block.service';
 import { ConfirmDialog } from '../../shared/components/confirm-dialog/confirm-dialog';
-import { ImageViewer } from '../../shared/components/image-viewer/image-viewer';
+import { ReportPanel } from '../../shared/components/report-panel/report-panel';
+import { TripPicker } from '../../shared/components/trip-picker/trip-picker';
+import { TripService, Trip, WISHLIST_ID } from '../../core/services/trip.service';
+import { TripMapView } from './trip-map/trip-map';
+import { CommentPanel } from '../../shared/components/comment-panel/comment-panel';
+import { PostCard } from '../../shared/components/post-card/post-card';
 import { timeAgo } from '../../shared/utils/time';
+import { sharePost } from '../../shared/utils/share';
 import { db, auth } from '../../core/services/firebase.service';
-import { collection, getDocs, query, where, doc, getDoc, updateDoc, deleteDoc, setDoc, increment, addDoc, onSnapshot, orderBy } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, getDoc, updateDoc, deleteDoc, setDoc, increment, addDoc, onSnapshot } from 'firebase/firestore';
 import { environment } from '../../environments/environment';
 import { COUNTRY_FLAGS, COUNTRY_CODES, REGION_MAP, COUNTRY_COORDS } from '../../shared/data/geo';
 
 @Component({
   selector: 'app-profile',
-  imports: [FormsModule, ConfirmDialog, RouterLink, ImageViewer],
+  imports: [FormsModule, ConfirmDialog, RouterLink, PostCard, CommentPanel, ReportPanel, TripPicker, TripMapView],
   templateUrl: './profile.html',
   styleUrl: './profile.scss',
 })
@@ -21,6 +29,9 @@ export class Profile implements OnInit, OnDestroy {
   private router = inject(Router);
   private route = inject(ActivatedRoute);
   private cdr = inject(ChangeDetectorRef);
+  private interaction = inject(InteractionService);
+  private blockService = inject(BlockService);
+  private tripService = inject(TripService);
 
   profileUser: any = null;
   videos: any[] = [];
@@ -31,21 +42,31 @@ export class Profile implements OnInit, OnDestroy {
   isEditing = false;
   showMenu = false;
   showCreateMenu = false;
+  showOtherMenu = false;
+  isBlocked = false;
+  blockedByThem = false;
+  showReportPanel = false;
+  reportReason = '';
+  reportDetails = '';
+  reportLoading = false;
+  reportSuccess = false;
   showVideoViewer = false;
   showImageViewer = false;
   imageViewerPost: any = null;
   viewerStartIndex = 0;
-  viewerMuted = true;
+  viewerMuted = false;
   showMuteIndicator = false;
   muteIndicatorFading = false;
 
-  // Comments
+  // Comments (video viewer)
   showComments = false;
-  comments: any[] = [];
-  newComment = '';
-  replyingTo: any = null;
-  private activeVideoId = '';
-  private commentsUnsubscribe: (() => void) | null = null;
+  private activeVideo: any = null;
+
+  // Header unread counts
+  unreadMessages = 0;
+  unreadNotifications = 0;
+  private unsubMessages: (() => void) | null = null;
+  private unsubNotifications: (() => void) | null = null;
 
   viewerContainer = viewChild<ElementRef>('viewerContainer');
   viewerVideos = viewChildren<ElementRef>('viewerVideo');
@@ -90,10 +111,17 @@ export class Profile implements OnInit, OnDestroy {
 
   // Saved tab
   activeTab: 'posts' | 'saved' | 'stamps' = 'posts';
-  savedGroups: { country: string; videos: any[]; thumbnail: string }[] = [];
+  savedTrips: { trip: Trip; bookmarks: any[]; coverUrl: string }[] = [];
   savedGroupVideos: any[] = [];
-  savedGroupCountry = '';
+  savedGroupTrip: Trip | null = null;
   showSavedGroup = false;
+  savedEditMode = false;
+  showEditTrip = false;
+  editTripName = '';
+  editTripDate = '';
+  showTripMap = false;
+  tripMapTrip: Trip | null = null;
+  tripMapBookmarks: any[] = [];
 
   // Passport features
 
@@ -110,8 +138,9 @@ export class Profile implements OnInit, OnDestroy {
   private confirmAction: (() => void) | null = null;
 
   ngOnDestroy() {
-    this.commentsUnsubscribe?.();
     this.viewerObserver?.disconnect();
+    this.unsubMessages?.();
+    this.unsubNotifications?.();
     clearTimeout(this.pressTimer);
     clearTimeout(this.tapTimer);
   }
@@ -132,6 +161,31 @@ export class Profile implements OnInit, OnDestroy {
     if (!userId) return;
 
     this.isOwnProfile = userId === this.authService.currentUser()?.uid;
+
+    // Listen for unread messages/notifications
+    if (this.isOwnProfile) {
+      const mq = query(
+        collection(db, 'conversations'),
+        where('participants', 'array-contains', userId)
+      );
+      this.unsubMessages = onSnapshot(mq, (snapshot) => {
+        let total = 0;
+        snapshot.docs.forEach(d => {
+          total += d.data()['unreadCount_' + userId] || 0;
+        });
+        this.unreadMessages = total;
+        this.cdr.detectChanges();
+      });
+
+      const nq = query(
+        collection(db, 'users', userId, 'notifications'),
+        where('read', '==', false)
+      );
+      this.unsubNotifications = onSnapshot(nq, (snapshot) => {
+        this.unreadNotifications = snapshot.size;
+        this.cdr.detectChanges();
+      });
+    }
 
     // Load user profile
     const userDoc = await getDoc(doc(db, 'users', userId));
@@ -178,6 +232,7 @@ export class Profile implements OnInit, OnDestroy {
       if (!this.isOwnProfile) {
         const followDoc = await getDoc(doc(db, 'users', userId, 'followers', currentUid));
         this.isFollowing = followDoc.exists();
+        this.checkBlocked();
       }
     }
 
@@ -271,36 +326,31 @@ export class Profile implements OnInit, OnDestroy {
   }
 
   async toggleFollow() {
-    const currentUid = this.authService.currentUser()?.uid;
-    if (!currentUid || this.isOwnProfile) return;
-
+    if (this.isOwnProfile || this.isBlocked || this.blockedByThem) return;
     const targetUid = this.profileUser.uid;
-    const followerRef = doc(db, 'users', targetUid, 'followers', currentUid);
-    const followingRef = doc(db, 'users', currentUid, 'following', targetUid);
-    const targetUserRef = doc(db, 'users', targetUid);
-    const currentUserRef = doc(db, 'users', currentUid);
-
-    if (this.isFollowing) {
-      this.isFollowing = false;
-      this.profileUser.followerCount--;
-      await deleteDoc(followerRef);
-      await deleteDoc(followingRef);
-      await updateDoc(targetUserRef, { followerCount: increment(-1) });
-      await updateDoc(currentUserRef, { followingCount: increment(-1) });
-    } else {
-      this.isFollowing = true;
-      this.profileUser.followerCount++;
-      await setDoc(followerRef, { userId: currentUid, createdAt: new Date().toISOString() });
-      await setDoc(followingRef, { userId: targetUid, createdAt: new Date().toISOString() });
-      await updateDoc(targetUserRef, { followerCount: increment(1) });
-      await updateDoc(currentUserRef, { followingCount: increment(1) });
-    }
+    const result = await this.interaction.toggleFollow(targetUid, this.isFollowing);
+    this.isFollowing = result.following;
+    this.profileUser.followerCount += result.delta;
+    this.cdr.detectChanges();
   }
 
   async sendMessage() {
     const uid = auth.currentUser?.uid;
     const targetUid = this.profileUser.uid;
     if (!uid || !targetUid || uid === targetUid) return;
+
+    if (this.isBlocked || this.blockedByThem) return;
+
+    // Check if target user allows messages from non-followers
+    const targetData = this.profileUser;
+    if (targetData.allowMessages === false && !this.isFollowing) {
+      // Check if target follows us (mutual isn't required, just we follow them)
+      const followerDoc = await getDoc(doc(db, 'users', targetUid, 'followers', uid));
+      if (!followerDoc.exists()) {
+        this.openConfirm('This user only accepts messages from followers.', 'OK', false, () => {});
+        return;
+      }
+    }
 
     // Check for existing conversation
     const q = query(
@@ -344,8 +394,8 @@ export class Profile implements OnInit, OnDestroy {
       this.editError = `Username must be at most ${this.usernameMax} characters.`;
       return;
     }
-    if (!/^[a-zA-Z0-9_]+$/.test(trimmedName)) {
-      this.editError = 'Only letters, numbers and underscores allowed.';
+    if (!/^[a-zA-Z0-9_. ]+$/.test(trimmedName)) {
+      this.editError = 'Only letters, numbers, spaces, underscores and dots allowed.';
       return;
     }
     if (trimmedBio.length > this.bioMax) {
@@ -458,35 +508,53 @@ export class Profile implements OnInit, OnDestroy {
   closeImageViewer() {
     this.showImageViewer = false;
     this.imageViewerPost = null;
+    this.showImagePostComments = false;
     this.cdr.detectChanges();
   }
 
-  async toggleImagePostLike() {
+  // Image post comments
+  showImagePostComments = false;
+
+  openImagePostComments() {
+    this.showImagePostComments = true;
+    this.cdr.detectChanges();
+  }
+
+  closeImagePostComments() {
+    this.showImagePostComments = false;
+    this.cdr.detectChanges();
+  }
+
+  onImagePostCommentCountChange(delta: number) {
+    if (this.imageViewerPost) this.imageViewerPost.commentCount += delta;
+    this.cdr.detectChanges();
+  }
+
+  async shareImagePost() {
     const post = this.imageViewerPost;
     if (!post) return;
-    const uid = this.authService.currentUser()?.uid;
-    if (!uid) return;
-    const likeRef = doc(db, 'posts', post.id, 'likes', uid);
-    if (post.liked) {
-      await deleteDoc(likeRef);
-      post.liked = false;
-      post.likeCount = (post.likeCount || 1) - 1;
-      await updateDoc(doc(db, 'posts', post.id), { likeCount: increment(-1) });
-    } else {
-      await setDoc(likeRef, { createdAt: new Date().toISOString() });
-      post.liked = true;
-      post.likeCount = (post.likeCount || 0) + 1;
-      await updateDoc(doc(db, 'posts', post.id), { likeCount: increment(1) });
-    }
-    this.cdr.detectChanges();
+    await sharePost(post.title);
   }
 
-  async deletePost(post: any, event: Event) {
-    event.stopPropagation();
+  async deletePost(post: any, event?: Event) {
+    event?.stopPropagation();
     this.openConfirm('Delete this post?', 'Delete', true, async () => {
       await deleteDoc(doc(db, 'posts', post.id));
       this.posts = this.posts.filter(p => p.id !== post.id);
       this.gridItems = this.gridItems.filter(i => i !== post);
+      if (this.showImageViewer && this.imageViewerPost?.id === post.id) {
+        this.closeImageViewer();
+      }
+      this.cdr.detectChanges();
+    });
+  }
+
+  async deleteVideo(video: any) {
+    this.openConfirm('Delete this video?', 'Delete', true, async () => {
+      await deleteDoc(doc(db, 'videos', video.id));
+      this.videos = this.videos.filter(v => v.id !== video.id);
+      this.gridItems = this.gridItems.filter(i => i !== video);
+      this.closeVideoViewer();
       this.cdr.detectChanges();
     });
   }
@@ -630,44 +698,51 @@ export class Profile implements OnInit, OnDestroy {
   }
 
   async toggleLike(video: any) {
-    const userId = this.authService.currentUser()?.uid;
-    if (!userId) return;
-
-    const likeRef = doc(db, 'videos', video.id, 'likes', userId);
-    const videoRef = doc(db, 'videos', video.id);
-
-    if (video.liked) {
-      video.liked = false;
-      video.likeCount--;
-      await deleteDoc(likeRef);
-      await updateDoc(videoRef, { likeCount: increment(-1) });
-    } else {
-      video.liked = true;
-      video.likeCount++;
-      await setDoc(likeRef, { userId, createdAt: new Date().toISOString() });
-      await updateDoc(videoRef, { likeCount: increment(1) });
-    }
+    const result = await this.interaction.toggleLike('videos', video.id, video.userId, video.title, video.liked);
+    video.liked = result.liked;
+    video.likeCount += result.delta;
+    this.cdr.detectChanges();
   }
 
   async toggleBookmark(video: any) {
-    const userId = this.authService.currentUser()?.uid;
-    if (!userId) return;
-    const bookmarkRef = doc(db, 'users', userId, 'bookmarks', video.id);
-
     if (video.bookmarked) {
-      video.bookmarked = false;
-      await deleteDoc(bookmarkRef);
-    } else {
-      video.bookmarked = true;
-      await setDoc(bookmarkRef, {
-        videoId: video.id,
-        country: video.location?.country || '',
-        city: video.location?.city || '',
-        cloudinaryUrl: video.cloudinaryUrl || '',
-        title: video.title || '',
-        createdAt: new Date().toISOString(),
-      });
+      video.bookmarked = await this.interaction.toggleBookmark(video.id, true, {});
+      this.cdr.detectChanges();
+      return;
     }
+    this.pendingBookmarkVideo = video;
+    this.tripPickerTrips = await this.tripService.getTrips(this.authService.currentUser()!.uid);
+    this.showTripPicker = true;
+    this.cdr.detectChanges();
+  }
+
+  // Trip picker
+  showTripPicker = false;
+  tripPickerTrips: Trip[] = [];
+  private pendingBookmarkVideo: any = null;
+
+  async onTripSelected(tripId: string) {
+    const video = this.pendingBookmarkVideo;
+    if (!video) return;
+    video.bookmarked = await this.interaction.toggleBookmark(video.id, false, {
+      country: video.location?.country || '',
+      city: video.location?.city || '',
+      cloudinaryUrl: video.cloudinaryUrl || '',
+      title: video.title || '',
+      tripId,
+    });
+    this.showTripPicker = false;
+    this.pendingBookmarkVideo = null;
+    this.cdr.detectChanges();
+  }
+
+  onTripCreated(trip: Trip) {
+    this.tripPickerTrips = [trip, ...this.tripPickerTrips];
+  }
+
+  closeTripPicker() {
+    this.showTripPicker = false;
+    this.pendingBookmarkVideo = null;
   }
 
   async openUserList(type: 'followers' | 'following') {
@@ -709,7 +784,7 @@ export class Profile implements OnInit, OnDestroy {
 
   async switchTab(tab: 'posts' | 'saved' | 'stamps') {
     this.activeTab = tab;
-    if (tab === 'saved' && this.savedGroups.length === 0) {
+    if (tab === 'saved' && this.savedTrips.length === 0) {
       await this.loadSavedBookmarks();
     }
   }
@@ -717,13 +792,16 @@ export class Profile implements OnInit, OnDestroy {
   async loadSavedBookmarks() {
     const uid = this.profileUser?.uid;
     if (!uid) return;
-    const snapshot = await getDocs(collection(db, 'users', uid, 'bookmarks'));
-    const bookmarks = snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as any[];
+
+    const [bookmarkSnap, trips] = await Promise.all([
+      getDocs(collection(db, 'users', uid, 'bookmarks')),
+      this.tripService.getTrips(uid),
+    ]);
+    const bookmarks = bookmarkSnap.docs.map(d => ({ id: d.id, ...d.data() })) as any[];
 
     // Enrich bookmarks with actual post/video data for thumbnails
     await Promise.all(bookmarks.map(async (b) => {
       if (!b._type) {
-        // Legacy bookmark — try to determine type
         const postDoc = await getDoc(doc(db, 'posts', b.id));
         if (postDoc.exists()) {
           const data = postDoc.data();
@@ -734,7 +812,6 @@ export class Profile implements OnInit, OnDestroy {
           b._type = 'video';
         }
       }
-      // If post bookmark still has no thumbnail, fetch it
       if (b._type === 'post' && !b.thumbnailUrl && !b.images?.length) {
         const postDoc = await getDoc(doc(db, 'posts', b.id));
         if (postDoc.exists()) {
@@ -745,34 +822,146 @@ export class Profile implements OnInit, OnDestroy {
       }
     }));
 
-    const groups = new Map<string, any[]>();
+    // Group by tripId
+    const tripMap = new Map<string, any[]>();
     for (const b of bookmarks) {
-      const country = b.country || 'Unknown';
-      if (!groups.has(country)) groups.set(country, []);
-      groups.get(country)!.push(b);
+      const tid = b.tripId || WISHLIST_ID;
+      if (!tripMap.has(tid)) tripMap.set(tid, []);
+      tripMap.get(tid)!.push(b);
     }
 
-    this.savedGroups = Array.from(groups.entries()).map(([country, items]) => ({
-      country,
-      videos: items,
-      thumbnail: items[0]?.cloudinaryUrl || items[0]?.thumbnailUrl || items[0]?.images?.[0]?.url || '',
-    }));
+    // Build trip cards — Wishlist first, then user trips
+    const result: { trip: Trip; bookmarks: any[]; coverUrl: string }[] = [];
+
+    const wishlistBookmarks = tripMap.get(WISHLIST_ID) || [];
+    if (wishlistBookmarks.length > 0 || trips.length === 0) {
+      const cover = this.getBookmarkCover(wishlistBookmarks);
+      result.push({
+        trip: { id: WISHLIST_ID, name: 'Wishlist', createdAt: '', updatedAt: '' },
+        bookmarks: wishlistBookmarks,
+        coverUrl: cover,
+      });
+    }
+
+    for (const t of trips) {
+      const tBookmarks = tripMap.get(t.id) || [];
+      result.push({
+        trip: t,
+        bookmarks: tBookmarks,
+        coverUrl: t.coverUrl || this.getBookmarkCover(tBookmarks),
+      });
+    }
+
+    this.savedTrips = result;
     this.cdr.detectChanges();
   }
 
-  openSavedGroup(group: { country: string; videos: any[]; thumbnail: string }) {
-    this.savedGroupCountry = group.country;
-    this.savedGroupVideos = group.videos;
+  private getBookmarkCover(bookmarks: any[]): string {
+    if (bookmarks.length === 0) return '';
+    const first = bookmarks[0];
+    if (first.cloudinaryUrl) {
+      return first.cloudinaryUrl
+        .replace('/video/upload/', '/video/upload/so_0,w_400,h_400,c_fill,q_auto,f_auto/')
+        .replace(/\.[^.]+$/, '.jpg');
+    }
+    return first.thumbnailUrl || first.images?.[0]?.url || '';
+  }
+
+  openSavedGroup(entry: { trip: Trip; bookmarks: any[]; coverUrl: string }) {
+    this.savedGroupTrip = entry.trip;
+    this.savedGroupVideos = entry.bookmarks;
     this.showSavedGroup = true;
   }
 
   closeSavedGroup() {
     this.showSavedGroup = false;
+    this.savedEditMode = false;
+    this.showEditTrip = false;
   }
 
-  onSavedItemClick(item: any) {
+  async deleteSavedTrip(entry: { trip: Trip; bookmarks: any[] }, event: Event) {
+    event.stopPropagation();
+    const uid = this.authService.currentUser()?.uid;
+    if (!uid) return;
+    if (entry.trip.id === WISHLIST_ID) {
+      // Delete all wishlist bookmarks
+      await Promise.all(entry.bookmarks.map(v => deleteDoc(doc(db, 'users', uid, 'bookmarks', v.id))));
+    } else {
+      await this.tripService.deleteTrip(entry.trip.id);
+    }
+    this.savedTrips = this.savedTrips.filter(g => g.trip.id !== entry.trip.id);
+    if (this.savedTrips.length === 0) this.savedEditMode = false;
+    this.cdr.detectChanges();
+  }
+
+  async deleteSavedItem(item: any, event: Event) {
+    event.stopPropagation();
+    const uid = this.authService.currentUser()?.uid;
+    if (!uid) return;
+    await deleteDoc(doc(db, 'users', uid, 'bookmarks', item.id));
+    this.savedGroupVideos = this.savedGroupVideos.filter(v => v.id !== item.id);
+    const entry = this.savedTrips.find(g => g.trip.id === this.savedGroupTrip?.id);
+    if (entry) {
+      entry.bookmarks = entry.bookmarks.filter((v: any) => v.id !== item.id);
+      entry.coverUrl = this.getBookmarkCover(entry.bookmarks);
+      if (entry.bookmarks.length === 0 && entry.trip.id !== WISHLIST_ID) {
+        await this.tripService.deleteTrip(entry.trip.id);
+        this.savedTrips = this.savedTrips.filter(g => g.trip.id !== entry.trip.id);
+        this.showSavedGroup = false;
+        this.savedEditMode = false;
+      }
+    }
+    if (this.savedGroupVideos.length === 0) this.savedEditMode = false;
+    this.cdr.detectChanges();
+  }
+
+  getCountdown(date: string): string {
+    const diff = Math.ceil((new Date(date).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+    if (diff < 0) return 'Past';
+    if (diff === 0) return 'Today!';
+    if (diff === 1) return 'Tomorrow';
+    if (diff <= 30) return `${diff} days`;
+    const months = Math.round(diff / 30);
+    return months === 1 ? 'In 1 month' : `In ${months} months`;
+  }
+
+  openEditTrip() {
+    if (!this.savedGroupTrip || this.savedGroupTrip.id === WISHLIST_ID) return;
+    this.editTripName = this.savedGroupTrip.name;
+    this.editTripDate = this.savedGroupTrip.date || '';
+    this.showEditTrip = true;
+  }
+
+  async saveEditTrip() {
+    if (!this.savedGroupTrip || this.savedGroupTrip.id === WISHLIST_ID) return;
+    const data: any = { name: this.editTripName.trim() };
+    if (this.editTripDate) data.date = this.editTripDate;
+    else data.date = '';
+    await this.tripService.updateTrip(this.savedGroupTrip.id, data);
+    this.savedGroupTrip.name = data.name;
+    this.savedGroupTrip.date = data.date || undefined;
+    const entry = this.savedTrips.find(g => g.trip.id === this.savedGroupTrip!.id);
+    if (entry) { entry.trip.name = data.name; entry.trip.date = data.date || undefined; }
+    this.showEditTrip = false;
+    this.cdr.detectChanges();
+  }
+
+  async onSavedItemClick(item: any) {
     if (item._type === 'post') {
-      this.imageViewerPost = item;
+      // Fetch full post data so likes/comments/title are populated
+      const postDoc = await getDoc(doc(db, 'posts', item.id));
+      if (postDoc.exists()) {
+        const data = postDoc.data();
+        const uid = this.authService.currentUser()?.uid;
+        let liked = false;
+        if (uid) {
+          const likeDoc = await getDoc(doc(db, 'posts', item.id, 'likes', uid));
+          liked = likeDoc.exists();
+        }
+        this.imageViewerPost = { ...item, ...data, id: item.id, liked, bookmarked: true };
+      } else {
+        this.imageViewerPost = item;
+      }
       this.showImageViewer = true;
       this.cdr.detectChanges();
     } else {
@@ -780,164 +969,169 @@ export class Profile implements OnInit, OnDestroy {
       const videoIndex = this.videos.findIndex(v => v.id === item.id || v.id === item.videoId);
       if (videoIndex >= 0) {
         this.openVideoViewer(videoIndex);
+      } else {
+        // Bookmarked video from another user — fetch and open standalone
+        const videoId = item.videoId || item.id;
+        const videoDoc = await getDoc(doc(db, 'videos', videoId));
+        if (videoDoc.exists()) {
+          const videoData = { id: videoDoc.id, ...videoDoc.data(), liked: false, bookmarked: true } as any;
+          const uid = this.authService.currentUser()?.uid;
+          if (uid) {
+            const likeDoc = await getDoc(doc(db, 'videos', videoId, 'likes', uid));
+            videoData.liked = likeDoc.exists();
+          }
+          this.videos.push(videoData);
+          this.openVideoViewer(this.videos.length - 1);
+        }
       }
     }
   }
 
   openComments(video: any) {
-    this.activeVideoId = video.id;
+    this.activeVideo = video;
     this.showComments = true;
-    this.comments = [];
-    this.replyingTo = null;
-
-    const userId = this.authService.currentUser()?.uid;
-    const commentsRef = collection(db, 'videos', video.id, 'comments');
-    const q = query(commentsRef, orderBy('createdAt', 'asc'));
-
-    this.commentsUnsubscribe = onSnapshot(q, async (snapshot) => {
-      const allComments: any[] = snapshot.docs.map(d => ({ id: d.id, ...d.data(), liked: false, showReplies: false, replies: [] as any[] }));
-
-      if (userId) {
-        await Promise.all(allComments.map(async (comment) => {
-          const likeDoc = await getDoc(doc(db, 'videos', video.id, 'comments', comment.id, 'likes', userId));
-          comment.liked = likeDoc.exists();
-        }));
-      }
-
-      const needPhoto = allComments.filter(c => !c.photoURL);
-      if (needPhoto.length > 0) {
-        await Promise.all(needPhoto.map(async (comment) => {
-          const uDoc = await getDoc(doc(db, 'users', comment.userId));
-          comment.photoURL = uDoc.exists() ? uDoc.data()['photoURL'] || '' : '';
-        }));
-      }
-
-      const topLevel = allComments.filter(c => !c.parentId);
-      const replies = allComments.filter(c => c.parentId);
-      const prevShowState = new Map(this.comments.map(c => [c.id, c.showReplies]));
-
-      topLevel.forEach(c => {
-        c.replies = replies.filter(r => r.parentId === c.id);
-        c.replyCount = c.replies.length;
-        c.showReplies = prevShowState.get(c.id) || false;
-      });
-
-      this.comments = topLevel;
-      this.cdr.detectChanges();
-    });
+    this.cdr.detectChanges();
   }
 
   closeComments() {
     this.showComments = false;
-    this.replyingTo = null;
-    if (this.commentsUnsubscribe) {
-      this.commentsUnsubscribe();
-      this.commentsUnsubscribe = null;
-    }
+    this.activeVideo = null;
   }
 
-  startReply(comment: any) {
-    this.replyingTo = comment;
-    this.newComment = '';
+  onCommentCountChange(delta: number) {
+    if (this.activeVideo) this.activeVideo.commentCount += delta;
+    this.cdr.detectChanges();
   }
 
-  cancelReply() {
-    this.replyingTo = null;
-    this.newComment = '';
+  get commentsVideoId(): string { return this.activeVideo?.id || ''; }
+  get commentsOwnerId(): string { return this.activeVideo?.userId || ''; }
+  get commentsTitle(): string { return this.activeVideo?.title || ''; }
+
+  async checkBlocked() {
+    const uid = this.authService.currentUser()?.uid;
+    if (!uid || !this.profileUser?.uid) return;
+    const [blockDoc, reverseDoc] = await Promise.all([
+      getDoc(doc(db, 'users', uid, 'blockedUsers', this.profileUser.uid)),
+      getDoc(doc(db, 'users', this.profileUser.uid, 'blockedUsers', uid)),
+    ]);
+    this.isBlocked = blockDoc.exists();
+    this.blockedByThem = reverseDoc.exists();
+    this.cdr.detectChanges();
   }
 
-  async toggleCommentLike(comment: any) {
-    const userId = this.authService.currentUser()?.uid;
-    if (!userId) return;
-
-    const likeRef = doc(db, 'videos', this.activeVideoId, 'comments', comment.id, 'likes', userId);
-    const commentRef = doc(db, 'videos', this.activeVideoId, 'comments', comment.id);
-
-    if (comment.liked) {
-      comment.liked = false;
-      comment.likeCount = (comment.likeCount || 1) - 1;
-      await deleteDoc(likeRef);
-      await updateDoc(commentRef, { likeCount: increment(-1) });
+  async blockUser() {
+    const uid = this.authService.currentUser()?.uid;
+    if (!uid || !this.profileUser?.uid) return;
+    this.showOtherMenu = false;
+    if (this.isBlocked) {
+      await deleteDoc(doc(db, 'users', uid, 'blockedUsers', this.profileUser.uid));
+      this.blockService.removeBlock(this.profileUser.uid);
+      this.isBlocked = false;
+      this.cdr.detectChanges();
     } else {
-      comment.liked = true;
-      comment.likeCount = (comment.likeCount || 0) + 1;
-      await setDoc(likeRef, { userId, createdAt: new Date().toISOString() });
-      await updateDoc(commentRef, { likeCount: increment(1) });
+      this.openConfirm(`Block ${this.profileUser.username}? They won't be able to message you.`, 'Block', true, async () => {
+        const targetUid = this.profileUser.uid;
+        await setDoc(doc(db, 'users', uid, 'blockedUsers', targetUid), { blockedAt: new Date().toISOString() });
+        this.blockService.addBlock(targetUid);
+        this.isBlocked = true;
+
+        // Mutual unfollow
+        const followerRef = doc(db, 'users', targetUid, 'followers', uid);
+        const followingRef = doc(db, 'users', uid, 'following', targetUid);
+        const reverseFollowerRef = doc(db, 'users', uid, 'followers', targetUid);
+        const reverseFollowingRef = doc(db, 'users', targetUid, 'following', uid);
+
+        const [f1, f2] = await Promise.all([
+          getDoc(followerRef),
+          getDoc(reverseFollowerRef),
+        ]);
+
+        if (f1.exists()) {
+          await deleteDoc(followerRef);
+          await deleteDoc(followingRef);
+          await updateDoc(doc(db, 'users', targetUid), { followerCount: increment(-1) });
+          await updateDoc(doc(db, 'users', uid), { followingCount: increment(-1) });
+        }
+        if (f2.exists()) {
+          await deleteDoc(reverseFollowerRef);
+          await deleteDoc(reverseFollowingRef);
+          await updateDoc(doc(db, 'users', uid), { followerCount: increment(-1) });
+          await updateDoc(doc(db, 'users', targetUid), { followingCount: increment(-1) });
+        }
+
+        this.isFollowing = false;
+        this.profileUser.followerCount = Math.max(0, this.profileUser.followerCount - (f1.exists() ? 1 : 0));
+        this.cdr.detectChanges();
+      });
     }
-    this.cdr.detectChanges();
   }
 
-  async postComment() {
-    if (!this.newComment.trim()) return;
-    const userId = this.authService.currentUser()?.uid;
-    if (!userId) return;
+  reportUser() {
+    this.showOtherMenu = false;
+    this.showReportPanel = true;
+    this.reportReason = '';
+    this.reportDetails = '';
+    this.reportSuccess = false;
+  }
 
-    const text = this.newComment.trim();
-    this.newComment = '';
-    const parentId = this.replyingTo?.id || null;
-    this.replyingTo = null;
-    this.cdr.detectChanges();
-
-    const userDoc = await getDoc(doc(db, 'users', userId));
-    const username = userDoc.exists() ? userDoc.data()['username'] : 'Anonymous';
-    const photoURL = userDoc.exists() ? userDoc.data()['photoURL'] || '' : '';
-
-    const commentsRef = collection(db, 'videos', this.activeVideoId, 'comments');
-    const commentData: any = {
-      userId,
-      username,
-      photoURL,
-      text,
-      createdAt: new Date().toISOString(),
-      likeCount: 0,
-    };
-    if (parentId) commentData.parentId = parentId;
-    await addDoc(commentsRef, commentData);
-
-    const videoRef = doc(db, 'videos', this.activeVideoId);
-    await updateDoc(videoRef, { commentCount: increment(1) });
-
-    const video = this.videos.find(v => v.id === this.activeVideoId);
-    if (video) video.commentCount++;
-
-    if (parentId) {
-      const parent = this.comments.find(c => c.id === parentId);
-      if (parent) parent.showReplies = true;
+  async submitReport() {
+    const uid = this.authService.currentUser()?.uid;
+    if (!uid || !this.reportReason) return;
+    this.reportLoading = true;
+    try {
+      await addDoc(collection(db, 'reports'), {
+        reporterId: uid,
+        reportedUserId: this.profileUser.uid,
+        reportedContentId: null,
+        contentType: 'user',
+        reason: this.reportReason,
+        details: this.reportDetails.trim(),
+        createdAt: new Date().toISOString(),
+      });
+      this.reportSuccess = true;
+    } catch {
+      // silently fail
+    } finally {
+      this.reportLoading = false;
+      this.cdr.detectChanges();
     }
+  }
 
+  closeReportPanel() {
+    this.showReportPanel = false;
+    this.reportReason = '';
+    this.reportDetails = '';
+    this.reportSuccess = false;
+  }
+
+  // ── Share ──
+
+  showCopiedToast = false;
+
+  async onShare(video: any) {
+    const copied = await sharePost(video.title);
+    if (copied) {
+      this.showCopiedToast = true;
+      this.cdr.detectChanges();
+      setTimeout(() => { this.showCopiedToast = false; this.cdr.detectChanges(); }, 2000);
+    }
+  }
+
+  // ── Content Report (from PostCard) ──
+  showContentReportPanel = false;
+  contentReportId = '';
+  contentReportType: 'video' | 'post' = 'post';
+  contentReportOwnerId = '';
+
+  openContentReport(data: { contentId: string; contentType: string; contentOwnerId: string }) {
+    this.contentReportId = data.contentId;
+    this.contentReportType = data.contentType as 'video' | 'post';
+    this.contentReportOwnerId = data.contentOwnerId;
+    this.showContentReportPanel = true;
     this.cdr.detectChanges();
   }
 
-  async deleteComment(comment: any) {
-    const userId = this.authService.currentUser()?.uid;
-    if (comment.userId !== userId) return;
-
-    this.openConfirm('Delete this comment?', 'Delete', true, async () => {
-      await deleteDoc(doc(db, 'videos', this.activeVideoId, 'comments', comment.id));
-
-      if (!comment.parentId && comment.replies?.length) {
-        await Promise.all(comment.replies.map((r: any) =>
-          deleteDoc(doc(db, 'videos', this.activeVideoId, 'comments', r.id))
-        ));
-      }
-
-      const videoRef = doc(db, 'videos', this.activeVideoId);
-      const deleteCount = comment.parentId ? 1 : 1 + (comment.replies?.length || 0);
-      await updateDoc(videoRef, { commentCount: increment(-deleteCount) });
-
-      const video = this.videos.find(v => v.id === this.activeVideoId);
-      if (video) video.commentCount -= deleteCount;
-
-      this.cdr.detectChanges();
-    });
-  }
-
-  async deleteVideo(video: any, event: Event) {
-    event.stopPropagation();
-    this.openConfirm('Delete this video?', 'Delete', true, async () => {
-      await deleteDoc(doc(db, 'videos', video.id));
-      this.videos = this.videos.filter(v => v.id !== video.id);
-      this.cdr.detectChanges();
-    });
+  closeContentReport() {
+    this.showContentReportPanel = false;
   }
 }

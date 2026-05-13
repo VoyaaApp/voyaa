@@ -1,6 +1,6 @@
 <div class="upload-page">
   <div class="upload-header">
-    <button class="back-btn" (click)="goBack()">
+    <button class="back-btn" (click)="goBack()" aria-label="Go back">
       <span class="material-symbols-rounded">arrow_back</span>
     </button>
     <h1>Post a Video</h1>
@@ -8,7 +8,7 @@
 
   <div class="file-picker" (click)="fileInput.click()">
     @if (videoPreviewUrl) {
-      <video [src]="videoPreviewUrl" muted playsinline class="preview"></video>
+      <video [src]="videoPreviewUrl" muted autoplay playsinline class="preview"></video>
     } @else {
       <span class="material-symbols-rounded">cloud_upload</span>
       <p>Tap to select a video</p>
@@ -74,5 +74,12 @@
       <span class="upload-status">{{ uploadStatus }}</span>
       <span class="upload-hint">Please don't leave this page</span>
     </div>
+  </div>
+}
+
+@if (showSuccessToast) {
+  <div class="success-toast">
+    <span class="material-symbols-rounded">check_circle</span>
+    Posted!
   </div>
 }

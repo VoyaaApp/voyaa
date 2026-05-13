@@ -1,9 +1,17 @@
 <div class="top-bar">
   <img src="voyaa-small.png" alt="Voyaa" class="logo">
-  <a class="bell-btn" routerLink="/activity">
-    <span class="material-symbols-rounded">notifications</span>
-    @if (totalUnread > 0) {
-      <span class="badge">{{ totalUnread > 9 ? '9+' : totalUnread }}</span>
-    }
-  </a>
+  <div class="top-actions">
+    <a class="top-icon-btn" routerLink="/messages" aria-label="Messages">
+      <span class="material-symbols-rounded">chat_bubble</span>
+      @if (unreadMessages > 0) {
+        <span class="badge">{{ unreadMessages > 9 ? '9+' : unreadMessages }}</span>
+      }
+    </a>
+    <a class="top-icon-btn" routerLink="/activity" aria-label="View notifications">
+      <span class="material-symbols-rounded">notifications</span>
+      @if (unreadCount > 0) {
+        <span class="badge">{{ unreadCount > 9 ? '9+' : unreadCount }}</span>
+      }
+    </a>
+  </div>
 </div>

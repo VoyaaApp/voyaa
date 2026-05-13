@@ -3,7 +3,9 @@ import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { collection, query, where, orderBy, onSnapshot, getDocs, doc, getDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../../core/services/firebase.service';
+import { onAuthStateChanged } from 'firebase/auth';
 import { AuthService } from '../../core/services/auth.service';
+import { BlockService } from '../../core/services/block.service';
 import { Location } from '@angular/common';
 
 interface Conversation {
@@ -27,6 +29,7 @@ export class Messages implements OnInit, OnDestroy {
   private cdr = inject(ChangeDetectorRef);
   private location = inject(Location);
   authService = inject(AuthService);
+  private blockService = inject(BlockService);
 
   conversations: Conversation[] = [];
   loading = true;
@@ -50,51 +53,58 @@ export class Messages implements OnInit, OnDestroy {
   }
 
   private loadConversations() {
-    const uid = auth.currentUser?.uid;
-    if (!uid) return;
-
-    const q = query(
-      collection(db, 'conversations'),
-      where('participants', 'array-contains', uid),
-      orderBy('updatedAt', 'desc')
-    );
-
-    this.unsubscribe = onSnapshot(q, async (snapshot) => {
-      const convos: Conversation[] = [];
-
-      for (const docSnap of snapshot.docs) {
-        const data = docSnap.data();
-        const recipientId = (data['participants'] as string[]).find(id => id !== uid)!;
-
-        // Get recipient user info
-        let recipientName = 'Unknown';
-        let recipientAvatar = '';
-        try {
-          const userDoc = await getDoc(doc(db, 'users', recipientId));
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
-            recipientName = userData['username'] || 'Unknown';
-            recipientAvatar = userData['photoURL'] || '';
-          }
-        } catch {}
-
-        // Count unread
-        const unreadCount = data['unreadCount_' + uid] || 0;
-
-        convos.push({
-          id: docSnap.id,
-          recipientId,
-          recipientName,
-          recipientAvatar,
-          lastMessage: data['lastMessage'] || '',
-          lastMessageTime: data['updatedAt'],
-          unreadCount,
-        });
+    const unsub = onAuthStateChanged(auth, (user) => {
+      unsub();
+      if (!user) {
+        this.loading = false;
+        this.cdr.detectChanges();
+        return;
       }
 
-      this.conversations = convos;
-      this.loading = false;
-      this.cdr.detectChanges();
+      const uid = user.uid;
+      this.blockService.ensureLoaded();
+
+      const q = query(
+        collection(db, 'conversations'),
+        where('participants', 'array-contains', uid),
+        orderBy('updatedAt', 'desc')
+      );
+
+      this.unsubscribe = onSnapshot(q, async (snapshot) => {
+        const convos: Conversation[] = [];
+
+        for (const docSnap of snapshot.docs) {
+          const data = docSnap.data();
+          const recipientId = (data['participants'] as string[]).find(id => id !== uid)!;
+
+          let recipientName = 'Unknown';
+          let recipientAvatar = '';
+          try {
+            const userDoc = await getDoc(doc(db, 'users', recipientId));
+            if (userDoc.exists()) {
+              const userData = userDoc.data();
+              recipientName = userData['username'] || 'Unknown';
+              recipientAvatar = userData['photoURL'] || '';
+            }
+          } catch {}
+
+          const unreadCount = data['unreadCount_' + uid] || 0;
+
+          convos.push({
+            id: docSnap.id,
+            recipientId,
+            recipientName,
+            recipientAvatar,
+            lastMessage: data['lastMessage'] || '',
+            lastMessageTime: data['updatedAt'],
+            unreadCount,
+          });
+        }
+
+        this.conversations = convos.filter(c => !this.blockService.isBlocked(c.recipientId));
+        this.loading = false;
+        this.cdr.detectChanges();
+      });
     });
   }
 
@@ -117,7 +127,10 @@ export class Messages implements OnInit, OnDestroy {
         .filter((u: any) => u.uid !== uid && u.username?.toLowerCase().includes(q))
         .slice(0, 10);
       this.cdr.detectChanges();
-    } catch {}
+    } catch {
+      this.searchResults = [];
+      this.cdr.detectChanges();
+    }
   }
 
   async startConversation(recipientId: string) {

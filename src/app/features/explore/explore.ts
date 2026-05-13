@@ -1,11 +1,20 @@
 import { Component, OnInit, OnDestroy, AfterViewInit, inject, ChangeDetectorRef, ElementRef, viewChild, viewChildren } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
-import { FormsModule } from '@angular/forms';
-import { collection, getDocs, doc, getDoc, setDoc, deleteDoc, updateDoc, increment, addDoc, onSnapshot, orderBy, query, where } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc, onSnapshot, query, where } from 'firebase/firestore';
 import { db, auth } from '../../core/services/firebase.service';
 import { AuthService } from '../../core/services/auth.service';
+import { InteractionService } from '../../core/services/interaction.service';
+import { BlockService } from '../../core/services/block.service';
+import { CommentPanel } from '../../shared/components/comment-panel/comment-panel';
+import { PostCard } from '../../shared/components/post-card/post-card';
+import { ReportPanel } from '../../shared/components/report-panel/report-panel';
+import { ConfirmDialog } from '../../shared/components/confirm-dialog/confirm-dialog';
+import { TripPicker } from '../../shared/components/trip-picker/trip-picker';
+import { TripService, Trip, WISHLIST_ID } from '../../core/services/trip.service';
 import { COUNTRY_COORDS, REGION_MAP } from '../../shared/data/geo';
 import { formatCount } from '../../shared/utils/format';
+import { timeAgo } from '../../shared/utils/time';
+import { sharePost } from '../../shared/utils/share';
 
 declare const L: any;
 
@@ -25,6 +34,7 @@ interface VideoCard {
   commentCount: number;
   viewCount?: number;
   showHeart?: boolean;
+  showMenu?: boolean;
   _type: 'video' | 'post';
   images?: { url: string; publicId: string }[];
   thumbnailUrl?: string;
@@ -33,7 +43,7 @@ interface VideoCard {
 
 @Component({
   selector: 'app-explore',
-  imports: [FormsModule, RouterLink],
+  imports: [RouterLink, PostCard, CommentPanel, ReportPanel, ConfirmDialog, TripPicker],
   templateUrl: './explore.html',
   styleUrl: './explore.scss',
 })
@@ -41,35 +51,29 @@ export class Explore implements OnInit, AfterViewInit, OnDestroy {
   private router = inject(Router);
   private cdr = inject(ChangeDetectorRef);
   authService = inject(AuthService);
+  private interaction = inject(InteractionService);
+  private blockService = inject(BlockService);
+  private tripService = inject(TripService);
   mapContainer = viewChild<ElementRef>('mapContainer');
 
   allVideoCards: VideoCard[] = [];
   displayedVideos: VideoCard[] = [];
+
   followedUids = new Set<string>();
   favouriteCountries = new Set<string>();
-  searchQuery = '';
-  searchUsers: any[] = [];
-  private cachedUsers: any[] | null = null;
-  private searchDebounce: any = null;
   loading = true;
-  showCreateMenu = false;
+  loadError = false;
   formatCount = formatCount;
-  isMuted = true;
+  timeAgo = timeAgo;
+  isMuted = false;
   showPauseIndicator = false;
   pauseIndicatorFading = false;
   isPaused = false;
+  pausedVideoCard: VideoCard | null = null;
   private pressTimer: any = null;
   private tapTimer: any = null;
   private pendingTap = false;
   private userPausedVideo: HTMLVideoElement | null = null;
-
-  // Image carousel swipe
-  private carouselSwipeStartX = 0;
-  private carouselSwipeDelta = 0;
-
-  // Image tap
-  private imageTapPending = false;
-  private imageTapTimer: any = null;
 
   // Lightbox
   lightboxPost: VideoCard | null = null;
@@ -77,9 +81,11 @@ export class Explore implements OnInit, AfterViewInit, OnDestroy {
   private lightboxSwipeStartX = 0;
   private lightboxSwipeDelta = 0;
 
-  // Messages
+  // Messages & Notifications
   unreadMessages = 0;
+  unreadNotifications = 0;
   private unsubMessages: (() => void) | null = null;
+  private unsubNotifications: (() => void) | null = null;
 
   tabs = ['All', 'Following', 'Trending', 'Favourited', 'Asia', 'Europe', 'Americas', 'Africa', 'Middle East', 'Oceania'];
   activeTab = 'All';
@@ -100,6 +106,16 @@ export class Explore implements OnInit, AfterViewInit, OnDestroy {
 
   async ngOnInit() {
     this.listenUnreadMessages();
+    this.listenUnreadNotifications();
+    await this.loadContent();
+  }
+
+  async loadContent() {
+    this.loadError = false;
+    this.loading = true;
+    this.cdr.detectChanges();
+    try {
+    await this.blockService.ensureLoaded();
     const snapshot = await getDocs(collection(db, 'videos'));
     this.allVideos = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
 
@@ -203,6 +219,11 @@ export class Explore implements OnInit, AfterViewInit, OnDestroy {
       this.initMiniMap();
       this.setupFollowingObserver();
     }, 50);
+    } catch {
+      this.loadError = true;
+      this.loading = false;
+      this.cdr.detectChanges();
+    }
   }
 
   ngAfterViewInit() {}
@@ -213,10 +234,10 @@ export class Explore implements OnInit, AfterViewInit, OnDestroy {
       this.miniMap = null;
     }
     this.followingObserver?.disconnect();
-    this.commentsUnsubscribe?.();
     clearTimeout(this.pressTimer);
     clearTimeout(this.tapTimer);
     this.unsubMessages?.();
+    this.unsubNotifications?.();
   }
 
   private listenUnreadMessages() {
@@ -232,6 +253,19 @@ export class Explore implements OnInit, AfterViewInit, OnDestroy {
         total += d.data()['unreadCount_' + uid] || 0;
       });
       this.unreadMessages = total;
+      this.cdr.detectChanges();
+    });
+  }
+
+  private listenUnreadNotifications() {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+    const nq = query(
+      collection(db, 'users', uid, 'notifications'),
+      where('read', '==', false)
+    );
+    this.unsubNotifications = onSnapshot(nq, (snapshot) => {
+      this.unreadNotifications = snapshot.size;
       this.cdr.detectChanges();
     });
   }
@@ -291,39 +325,8 @@ export class Explore implements OnInit, AfterViewInit, OnDestroy {
     setTimeout(() => this.setupFollowingObserver(), 100);
   }
 
-  onSearch() {
-    this.updateDisplayedVideos();
-
-    clearTimeout(this.searchDebounce);
-    const q = this.searchQuery.trim().toLowerCase();
-    if (q.length < 2) {
-      this.searchUsers = [];
-      this.cdr.detectChanges();
-      return;
-    }
-
-    this.searchDebounce = setTimeout(async () => {
-      if (!this.cachedUsers) {
-        const snapshot = await getDocs(collection(db, 'users'));
-        this.cachedUsers = snapshot.docs.map(d => ({ uid: d.id, ...d.data() }));
-      }
-      const query = this.searchQuery.trim().toLowerCase();
-      this.searchUsers = this.cachedUsers
-        .filter((u: any) => u.username?.toLowerCase().includes(query))
-        .slice(0, 5);
-      this.cdr.detectChanges();
-    }, 300);
-  }
-
-  goToProfile(uid: string) {
-    this.searchQuery = '';
-    this.searchUsers = [];
-    this.updateDisplayedVideos();
-    this.router.navigate(['/profile', uid]);
-  }
-
   private updateDisplayedVideos() {
-    let videos = this.allVideoCards;
+    let videos = this.allVideoCards.filter(v => !this.blockService.isBlocked(v.userId));
 
     switch (this.activeTab) {
       case 'Following':
@@ -346,16 +349,6 @@ export class Explore implements OnInit, AfterViewInit, OnDestroy {
       default:
         videos = videos.filter(v => REGION_MAP[v.country] === this.activeTab);
         break;
-    }
-
-    const q = this.searchQuery.trim().toLowerCase();
-    if (q) {
-      videos = videos.filter(v =>
-        v.country.toLowerCase().includes(q) ||
-        v.city.toLowerCase().includes(q) ||
-        v.userName.toLowerCase().includes(q) ||
-        (v.title || '').toLowerCase().includes(q)
-      );
     }
 
     this.displayedVideos = videos.slice(0, 30);
@@ -390,20 +383,6 @@ export class Explore implements OnInit, AfterViewInit, OnDestroy {
 
   openGlobe() {
     this.router.navigate(['/globe']);
-  }
-
-  getTimeAgo(createdAt: any): string {
-    const ms = createdAt?.toMillis?.() || createdAt?.seconds * 1000 || 0;
-    if (!ms) return '';
-    const diff = Date.now() - ms;
-    const mins = Math.floor(diff / 60000);
-    if (mins < 60) return `${mins}m ago`;
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.floor(hours / 24);
-    if (days < 7) return `${days}d ago`;
-    const weeks = Math.floor(days / 7);
-    return `${weeks}w ago`;
   }
 
   private setupFollowingObserver() {
@@ -482,10 +461,12 @@ export class Explore implements OnInit, AfterViewInit, OnDestroy {
         vid.play();
         this.isPaused = false;
         this.userPausedVideo = null;
+        this.pausedVideoCard = null;
       } else {
         vid.pause();
         this.isPaused = true;
         this.userPausedVideo = vid;
+        this.pausedVideoCard = video;
       }
       if (!this.isPaused) {
         this.showPauseIndicator = true;
@@ -516,110 +497,62 @@ export class Explore implements OnInit, AfterViewInit, OnDestroy {
   }
 
   async toggleFollowingLike(video: VideoCard) {
-    const userId = auth.currentUser?.uid;
-    if (!userId) return;
-
     const collName = video._type === 'post' ? 'posts' : 'videos';
-    const likeRef = doc(db, collName, video.id, 'likes', userId);
-    const itemRef = doc(db, collName, video.id);
-
-    if (video.liked) {
-      video.liked = false;
-      video.likeCount--;
-      await deleteDoc(likeRef);
-      await updateDoc(itemRef, { likeCount: increment(-1) });
-    } else {
-      video.liked = true;
-      video.likeCount++;
-      await setDoc(likeRef, { userId, createdAt: new Date().toISOString() });
-      await updateDoc(itemRef, { likeCount: increment(1) });
-
-      if (video.userId !== userId) {
-        const currentUserRef = doc(db, 'users', userId);
-        const currentUserDoc = await getDoc(currentUserRef);
-        const fromUsername = currentUserDoc.exists() ? currentUserDoc.data()['username'] : '';
-        const fromPhotoURL = currentUserDoc.exists() ? currentUserDoc.data()['photoURL'] || '' : '';
-        await addDoc(collection(db, 'users', video.userId, 'notifications'), {
-          type: 'like', fromUserId: userId, fromUsername, fromPhotoURL,
-          videoId: video.id, videoTitle: video.title,
-          createdAt: new Date().toISOString(), read: false,
-        });
-      }
-    }
+    const result = await this.interaction.toggleLike(collName as 'videos' | 'posts', video.id, video.userId, video.title || '', video.liked);
+    video.liked = result.liked;
+    video.likeCount += result.delta;
     this.cdr.detectChanges();
   }
 
   async toggleFollowingBookmark(video: VideoCard) {
-    const userId = auth.currentUser?.uid;
-    if (!userId) return;
-    const bookmarkRef = doc(db, 'users', userId, 'bookmarks', video.id);
-
     if (video.bookmarked) {
-      video.bookmarked = false;
-      await deleteDoc(bookmarkRef);
-    } else {
-      video.bookmarked = true;
-      const bookmarkData: any = {
-        videoId: video.id, country: video.country, city: video.city,
-        title: video.title || '', _type: video._type,
-        createdAt: new Date().toISOString(),
-      };
-      if (video._type === 'post') {
-        bookmarkData.images = video.images;
-        bookmarkData.thumbnailUrl = video.thumbnailUrl || video.images?.[0]?.url || '';
-      } else {
-        bookmarkData.cloudinaryUrl = video.cloudinaryUrl;
-      }
-      await setDoc(bookmarkRef, bookmarkData);
-    }
-    this.cdr.detectChanges();
-  }
-
-  // ── Image carousel swipe ──
-
-  onCarouselSwipeStart(event: TouchEvent, video: VideoCard) {
-    if ((video.images?.length || 0) < 2) return;
-    this.carouselSwipeStartX = event.touches[0].clientX;
-    this.carouselSwipeDelta = 0;
-  }
-
-  onCarouselSwipeMove(event: TouchEvent) {
-    this.carouselSwipeDelta = event.touches[0].clientX - this.carouselSwipeStartX;
-  }
-
-  onCarouselSwipeEnd(video: VideoCard) {
-    const threshold = 60;
-    const idx = video.imageIndex || 0;
-    const max = (video.images?.length || 1) - 1;
-    if (this.carouselSwipeDelta < -threshold && idx < max) {
-      video.imageIndex = idx + 1;
-    } else if (this.carouselSwipeDelta > threshold && idx > 0) {
-      video.imageIndex = idx - 1;
-    }
-    this.carouselSwipeDelta = 0;
-    this.cdr.detectChanges();
-  }
-
-  onImageTap(video: VideoCard) {
-    if (Math.abs(this.carouselSwipeDelta) > 10) return; // was a swipe, not a tap
-    if (this.imageTapPending) {
-      clearTimeout(this.imageTapTimer);
-      this.imageTapPending = false;
-      // Double tap = like
-      if (!video.liked) {
-        this.toggleFollowingLike(video);
-      }
-      video.showHeart = true;
+      video.bookmarked = await this.interaction.toggleBookmark(video.id, true, {});
       this.cdr.detectChanges();
-      setTimeout(() => { video.showHeart = false; this.cdr.detectChanges(); }, 800);
       return;
     }
-    this.imageTapPending = true;
-    this.imageTapTimer = setTimeout(() => {
-      this.imageTapPending = false;
-      // Single tap = open lightbox
-      this.openLightbox(video);
-    }, 250);
+    this.pendingBookmarkVideo = video as any;
+    this.tripPickerTrips = await this.tripService.getTrips(this.authService.currentUser()!.uid);
+    this.showTripPicker = true;
+    this.cdr.detectChanges();
+  }
+
+  // Trip picker
+  showTripPicker = false;
+  tripPickerTrips: Trip[] = [];
+  private pendingBookmarkVideo: any = null;
+
+  async onTripSelected(tripId: string) {
+    const video = this.pendingBookmarkVideo;
+    if (!video) return;
+    const bookmarkData: any = {
+      country: video.country, city: video.city,
+      title: video.title || '', _type: video._type, tripId,
+    };
+    if (video._type === 'post') {
+      bookmarkData.images = video.images;
+      bookmarkData.thumbnailUrl = video.thumbnailUrl || video.images?.[0]?.url || '';
+    } else {
+      bookmarkData.cloudinaryUrl = video.cloudinaryUrl;
+    }
+    video.bookmarked = await this.interaction.toggleBookmark(video.id, false, bookmarkData);
+    this.showTripPicker = false;
+    this.pendingBookmarkVideo = null;
+    this.cdr.detectChanges();
+  }
+
+  onTripCreated(trip: Trip) {
+    this.tripPickerTrips = [trip, ...this.tripPickerTrips];
+  }
+
+  closeTripPicker() {
+    this.showTripPicker = false;
+    this.pendingBookmarkVideo = null;
+  }
+
+  // ── Image carousel helpers ──
+
+  getImageUrls(video: VideoCard): string[] {
+    return video.images?.map(img => img.url) || [];
   }
 
   openLightbox(video: VideoCard) {
@@ -656,158 +589,122 @@ export class Explore implements OnInit, AfterViewInit, OnDestroy {
 
   // Comments
   showComments = false;
-  comments: any[] = [];
-  newComment = '';
-  posting = false;
-  replyingTo: any = null;
-  private activeVideoId = '';
-  private commentsUnsubscribe: (() => void) | null = null;
+  private activeVideo: VideoCard | null = null;
 
   openComments(video: VideoCard) {
-    this.activeVideoId = video.id;
+    this.activeVideo = video;
     this.showComments = true;
-    this.comments = [];
-    this.replyingTo = null;
-
-    const userId = auth.currentUser?.uid;
-    const commentsRef = collection(db, 'videos', video.id, 'comments');
-    const q = query(commentsRef, orderBy('createdAt', 'asc'));
-
-    this.commentsUnsubscribe = onSnapshot(q, async (snapshot) => {
-      const allComments: any[] = snapshot.docs.map(d => ({ id: d.id, ...d.data(), liked: false, showReplies: false, replies: [] as any[] }));
-
-      if (userId) {
-        await Promise.all(allComments.map(async (comment) => {
-          const likeDoc = await getDoc(doc(db, 'videos', video.id, 'comments', comment.id, 'likes', userId));
-          comment.liked = likeDoc.exists();
-        }));
-      }
-
-      const needPhoto = allComments.filter(c => !c.photoURL);
-      if (needPhoto.length > 0) {
-        await Promise.all(needPhoto.map(async (comment) => {
-          const uDoc = await getDoc(doc(db, 'users', comment.userId));
-          comment.photoURL = uDoc.exists() ? uDoc.data()['photoURL'] || '' : '';
-        }));
-      }
-
-      const topLevel = allComments.filter(c => !c.parentId);
-      const replies = allComments.filter(c => c.parentId);
-      const prevShowState = new Map(this.comments.map(c => [c.id, c.showReplies]));
-
-      topLevel.forEach(c => {
-        c.replies = replies.filter(r => r.parentId === c.id);
-        c.replyCount = c.replies.length;
-        c.showReplies = prevShowState.get(c.id) || false;
-      });
-
-      this.comments = topLevel;
-      this.cdr.detectChanges();
-    });
+    this.cdr.detectChanges();
   }
 
   closeComments() {
     this.showComments = false;
-    this.replyingTo = null;
-    this.commentsUnsubscribe?.();
-    this.commentsUnsubscribe = null;
+    this.activeVideo = null;
   }
 
-  startReply(comment: any) {
-    this.replyingTo = comment;
-    this.newComment = '';
-  }
-
-  cancelReply() {
-    this.replyingTo = null;
-    this.newComment = '';
-  }
-
-  async toggleCommentLike(comment: any) {
-    const userId = auth.currentUser?.uid;
-    if (!userId) return;
-
-    const likeRef = doc(db, 'videos', this.activeVideoId, 'comments', comment.id, 'likes', userId);
-    const commentRef = doc(db, 'videos', this.activeVideoId, 'comments', comment.id);
-
-    if (comment.liked) {
-      comment.liked = false;
-      comment.likeCount = (comment.likeCount || 1) - 1;
-      await deleteDoc(likeRef);
-      await updateDoc(commentRef, { likeCount: increment(-1) });
-    } else {
-      comment.liked = true;
-      comment.likeCount = (comment.likeCount || 0) + 1;
-      await setDoc(likeRef, { userId, createdAt: new Date().toISOString() });
-      await updateDoc(commentRef, { likeCount: increment(1) });
-    }
+  onCommentCountChange(delta: number) {
+    if (this.activeVideo) this.activeVideo.commentCount += delta;
     this.cdr.detectChanges();
   }
 
-  async postComment() {
-    if (!this.newComment.trim() || this.posting) return;
-    const userId = auth.currentUser?.uid;
-    if (!userId) return;
+  get commentsVideoId(): string { return this.activeVideo?.id || ''; }
+  get commentsCollectionType(): 'videos' | 'posts' { return this.activeVideo?._type === 'post' ? 'posts' : 'videos'; }
+  get commentsOwnerId(): string { return this.activeVideo?.userId || ''; }
+  get commentsTitle(): string { return this.activeVideo?.title || ''; }
 
-    this.posting = true;
-    const text = this.newComment.trim();
-    this.newComment = '';
-    const parentId = this.replyingTo?.id || null;
-    this.replyingTo = null;
-    this.cdr.detectChanges();
+  // ── Share ──
 
-    const userDoc = await getDoc(doc(db, 'users', userId));
-    const username = userDoc.exists() ? userDoc.data()['username'] : 'Anonymous';
-    const photoURL = userDoc.exists() ? userDoc.data()['photoURL'] || '' : '';
+  showCopiedToast = false;
 
-    const commentData: any = {
-      userId, username, photoURL, text,
-      createdAt: new Date().toISOString(),
-      likeCount: 0,
-    };
-    if (parentId) commentData.parentId = parentId;
-    await addDoc(collection(db, 'videos', this.activeVideoId, 'comments'), commentData);
-
-    await updateDoc(doc(db, 'videos', this.activeVideoId), { commentCount: increment(1) });
-
-    const video = this.allVideoCards.find(v => v.id === this.activeVideoId);
-    if (video) video.commentCount++;
-
-    if (parentId) {
-      const parent = this.comments.find(c => c.id === parentId);
-      if (parent) parent.showReplies = true;
+  async onShare(video: VideoCard) {
+    const copied = await sharePost(video.title);
+    if (copied) {
+      this.showCopiedToast = true;
+      this.cdr.detectChanges();
+      setTimeout(() => { this.showCopiedToast = false; this.cdr.detectChanges(); }, 2000);
     }
+  }
 
-    if (video && video.userId !== userId) {
-      await addDoc(collection(db, 'users', video.userId, 'notifications'), {
-        type: 'comment', fromUserId: userId, fromUsername: username, fromPhotoURL: photoURL,
-        videoId: video.id, videoTitle: video.title,
-        createdAt: new Date().toISOString(), read: false,
-      });
-    }
+  // ── Report / Block ──
+  showReportPanel = false;
+  reportContentId = '';
+  reportContentType: 'video' | 'post' = 'video';
+  reportContentOwnerId = '';
 
-    this.posting = false;
+  showBlockConfirm = false;
+  blockTargetId = '';
+  blockTargetName = '';
+
+  openReport(data: { contentId: string; contentType: string; contentOwnerId: string }) {
+    this.reportContentId = data.contentId;
+    this.reportContentType = data.contentType as 'video' | 'post';
+    this.reportContentOwnerId = data.contentOwnerId;
+    this.showReportPanel = true;
     this.cdr.detectChanges();
   }
 
-  async deleteComment(comment: any) {
-    const userId = auth.currentUser?.uid;
-    if (comment.userId !== userId) return;
+  openReportVideo(video: VideoCard) {
+    this.openReport({ contentId: video.id, contentType: video._type, contentOwnerId: video.userId });
+  }
 
-    await deleteDoc(doc(db, 'videos', this.activeVideoId, 'comments', comment.id));
+  closeReport() {
+    this.showReportPanel = false;
+  }
 
-    if (!comment.parentId && comment.replies?.length) {
-      await Promise.all(comment.replies.map((r: any) =>
-        deleteDoc(doc(db, 'videos', this.activeVideoId, 'comments', r.id))
-      ));
-    }
-
-    const deleteCount = comment.parentId ? 1 : 1 + (comment.replies?.length || 0);
-    await updateDoc(doc(db, 'videos', this.activeVideoId), { commentCount: increment(-deleteCount) });
-
-    const video = this.allVideoCards.find(v => v.id === this.activeVideoId);
-    if (video) video.commentCount -= deleteCount;
-
+  confirmBlock(userId: string) {
+    const v = this.allVideoCards.find(c => c.userId === userId);
+    this.blockTargetId = userId;
+    this.blockTargetName = v?.userName || 'this user';
+    this.showBlockConfirm = true;
     this.cdr.detectChanges();
+  }
+
+  async doBlock() {
+    const uid = this.authService.currentUser()?.uid;
+    if (!uid || !this.blockTargetId) return;
+    const { setDoc, doc: fbDoc } = await import('firebase/firestore');
+    await setDoc(fbDoc(db, 'users', uid, 'blockedUsers', this.blockTargetId), { blockedAt: new Date().toISOString() });
+    this.blockService.addBlock(this.blockTargetId);
+    this.allVideoCards = this.allVideoCards.filter(v => v.userId !== this.blockTargetId);
+    this.updateDisplayedVideos();
+    this.showBlockConfirm = false;
+    this.cdr.detectChanges();
+  }
+
+  cancelBlock() {
+    this.showBlockConfirm = false;
+  }
+
+  // Delete confirmation
+  showDeleteConfirm = false;
+  pendingDeleteVideo: any = null;
+  deleteError = false;
+
+  deleteVideo(video: any) {
+    this.pendingDeleteVideo = video;
+    this.showDeleteConfirm = true;
+    this.cdr.detectChanges();
+  }
+
+  async doDeleteVideo() {
+    this.showDeleteConfirm = false;
+    const video = this.pendingDeleteVideo;
+    if (!video) return;
+    try {
+      const { deleteDoc, doc: fbDoc } = await import('firebase/firestore');
+      await deleteDoc(fbDoc(db, 'videos', video.id));
+      this.allVideoCards = this.allVideoCards.filter(v => v.id !== video.id);
+      this.updateDisplayedVideos();
+    } catch {
+      this.deleteError = true;
+      setTimeout(() => { this.deleteError = false; this.cdr.detectChanges(); }, 3000);
+    }
+    this.pendingDeleteVideo = null;
+    this.cdr.detectChanges();
+  }
+
+  cancelDeleteVideo() {
+    this.showDeleteConfirm = false;
+    this.pendingDeleteVideo = null;
   }
 }

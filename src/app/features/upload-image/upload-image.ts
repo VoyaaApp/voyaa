@@ -7,6 +7,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { db } from '../../core/services/firebase.service';
 import { collection, addDoc } from 'firebase/firestore';
 import { ImageEditor, ImageEditState } from '../../shared/components/image-editor/image-editor';
+import { ContentFilterService } from '../../core/services/content-filter.service';
 
 interface LocationSuggestion {
   display: string;
@@ -32,6 +33,7 @@ export class UploadImage implements OnDestroy {
   private location = inject(Location);
   private authService = inject(AuthService);
   private cdr = inject(ChangeDetectorRef);
+  private contentFilter = inject(ContentFilterService);
 
   images: ImageItem[] = [];
   activeIndex = 0;
@@ -42,6 +44,7 @@ export class UploadImage implements OnDestroy {
   uploadProgress = 0;
   uploadStatus = '';
   errorMessage = '';
+  showSuccessToast = false;
 
   // Location
   locationQuery = '';
@@ -180,6 +183,9 @@ export class UploadImage implements OnDestroy {
 
   onSwipeStart(event: TouchEvent) {
     if (this.images.length < 2) return;
+    // Only swipe when touching the canvas preview, not the tool controls
+    const target = event.target as HTMLElement;
+    if (target.closest('.editor-tools')) return;
     this.isSwiping = true;
     this.swipeStartX = event.touches[0].clientX;
     this.swipeDeltaX = 0;
@@ -220,7 +226,7 @@ export class UploadImage implements OnDestroy {
   async searchLocations(query: string) {
     try {
       const params = new URLSearchParams({
-        q: query, format: 'json', addressdetails: '1', limit: '5', 'accept-language': 'en',
+        q: query, format: 'json', addressdetails: '1', limit: '8', 'accept-language': 'en', dedupe: '1',
       });
       const res = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
         headers: { 'User-Agent': 'Voyaa/1.0' },
@@ -231,8 +237,9 @@ export class UploadImage implements OnDestroy {
           const addr = r.address || {};
           const city = addr.city || addr.town || addr.village || addr.county || addr.state || '';
           const country = addr.country || '';
-          if (!city || !country) return null;
-          return { display: `${city}, ${country}`, city, country, lat: parseFloat(r.lat), lon: parseFloat(r.lon) };
+          if (!country) return null;
+          const display = city ? `${city}, ${country}` : country;
+          return { display, city, country, lat: parseFloat(r.lat), lon: parseFloat(r.lon) };
         })
         .filter((s: any): s is LocationSuggestion => s !== null)
         .filter((s: LocationSuggestion, i: number, arr: LocationSuggestion[]) =>
@@ -283,6 +290,10 @@ export class UploadImage implements OnDestroy {
     }
     if (!this.locationCountry || !this.locationCity) {
       this.errorMessage = 'Please select a location.';
+      return;
+    }
+    if (!this.contentFilter.isClean(this.title)) {
+      this.errorMessage = 'Your title contains inappropriate language. Please revise it.';
       return;
     }
 
@@ -345,10 +356,12 @@ export class UploadImage implements OnDestroy {
         createdAt: new Date().toISOString(),
       });
 
-      this.router.navigate(['/profile']);
+      this.isUploading = false;
+      this.showSuccessToast = true;
+      this.cdr.detectChanges();
+      setTimeout(() => this.router.navigate(['/profile']), 1500);
     } catch (error: any) {
       this.errorMessage = error.message || 'Something went wrong.';
-    } finally {
       this.isUploading = false;
       this.cdr.detectChanges();
     }

@@ -1,12 +1,12 @@
 <div class="chat-page">
   <div class="chat-header">
-    <button class="back-btn" (click)="goBack()">
+    <button class="back-btn" (click)="goBack()" aria-label="Go back">
       <span class="material-symbols-rounded">arrow_back</span>
     </button>
     <div class="header-user" (click)="goToProfile()">
       <div class="header-avatar">
         @if (recipientAvatar) {
-          <img [src]="recipientAvatar" alt="">
+          <img [src]="recipientAvatar" [alt]="recipientName">
         } @else {
           <span class="material-symbols-rounded">account_circle</span>
         }
@@ -19,6 +19,11 @@
     @if (loading) {
       <div class="loading">
         <span class="material-symbols-rounded spin">progress_activity</span>
+      </div>
+    } @else if (loadError) {
+      <div class="empty-chat">
+        <span class="material-symbols-rounded" style="font-size:48px; color:#333">wifi_off</span>
+        <p class="empty-hint">Couldn't load conversation</p>
       </div>
     } @else if (messages.length === 0) {
       <div class="empty-chat">
@@ -44,15 +49,23 @@
     }
   </div>
 
-  <div class="compose-bar">
-    <input
-      type="text"
-      [(ngModel)]="newMessage"
-      placeholder="Message..."
-      (keydown.enter)="sendMessage()"
-      class="compose-input">
-    <button class="send-btn" [disabled]="!newMessage.trim()" (click)="sendMessage()">
-      <span class="material-symbols-rounded">send</span>
-    </button>
-  </div>
+  @if (isBlockedConversation) {
+    <div class="blocked-banner">You can't message this user.</div>
+  } @else {
+    @if (sendError) {
+      <div class="send-error">Message failed to send</div>
+    }
+    <div class="compose-bar">
+      <input
+        type="text"
+        [(ngModel)]="newMessage"
+        placeholder="Message..."
+        (keydown.enter)="sendMessage()"
+        class="compose-input"
+        [disabled]="sending">
+      <button class="send-btn" [disabled]="!newMessage.trim() || sending" (click)="sendMessage()" aria-label="Send message">
+        <span class="material-symbols-rounded" [class.spin]="sending">{{ sending ? 'progress_activity' : 'send' }}</span>
+      </button>
+    </div>
+  }
 </div>

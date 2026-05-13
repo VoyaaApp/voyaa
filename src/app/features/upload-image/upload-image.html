@@ -3,7 +3,7 @@
   @if (images.length === 0) {
     <!-- Picker -->
     <div class="upload-header">
-      <button class="back-btn" (click)="goBack()">
+      <button class="back-btn" (click)="goBack()" aria-label="Go back">
         <span class="material-symbols-rounded">arrow_back</span>
       </button>
       <h1>Post Photos</h1>
@@ -80,28 +80,32 @@
         <span class="material-symbols-rounded">arrow_back</span>
       </button>
       <h1>Post Details</h1>
+      <button class="next-btn" (click)="upload()" [disabled]="isUploading">
+        {{ isUploading ? 'Posting...' : 'Post' }}
+      </button>
     </div>
 
-    <div class="details-preview">
-      <div class="preview-carousel">
-        <img [src]="previewUrls[previewIndex]" alt="">
-        @if (images.length > 1) {
-          <div class="preview-counter">{{ previewIndex + 1 }}/{{ images.length }}</div>
-          @if (previewIndex > 0) {
-            <button class="preview-arrow left" (click)="previewIndex = previewIndex - 1">
-              <span class="material-symbols-rounded">chevron_left</span>
-            </button>
+    <div class="details-scroll">
+      <div class="details-preview">
+        <div class="preview-carousel">
+          <img [src]="previewUrls[previewIndex]" alt="">
+          @if (images.length > 1) {
+            <div class="preview-counter">{{ previewIndex + 1 }}/{{ images.length }}</div>
+            @if (previewIndex > 0) {
+              <button class="preview-arrow left" (click)="previewIndex = previewIndex - 1">
+                <span class="material-symbols-rounded">chevron_left</span>
+              </button>
+            }
+            @if (previewIndex < images.length - 1) {
+              <button class="preview-arrow right" (click)="previewIndex = previewIndex + 1">
+                <span class="material-symbols-rounded">chevron_right</span>
+              </button>
+            }
           }
-          @if (previewIndex < images.length - 1) {
-            <button class="preview-arrow right" (click)="previewIndex = previewIndex + 1">
-              <span class="material-symbols-rounded">chevron_right</span>
-            </button>
-          }
-        }
+        </div>
       </div>
-    </div>
 
-    <div class="post-details">
+      <div class="post-details">
       <input type="text" [(ngModel)]="title" placeholder="Add a title..." class="title-input">
 
       <div class="location-field">
@@ -126,7 +130,7 @@
             }
           </div>
           @if (showLocationDropdown && locationSuggestions.length > 0) {
-            <div class="dropdown">
+            <div class="dropdown above">
               @for (s of locationSuggestions; track s.display) {
                 <div class="dropdown-item" (click)="selectLocation(s)">
                   <span class="material-symbols-rounded dropdown-icon">location_on</span>
@@ -150,5 +154,13 @@
         }
       </button>
     </div>
+    </div>
   }
 </div>
+
+@if (showSuccessToast) {
+  <div class="success-toast">
+    <span class="material-symbols-rounded">check_circle</span>
+    Posted!
+  </div>
+}

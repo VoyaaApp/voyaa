@@ -1,5 +1,5 @@
 .upload-page {
-  min-height: calc(100dvh - 56px);
+  min-height: var(--content-height);
   background: #0a0a0a;
   padding: 24px;
   display: flex;
@@ -8,7 +8,7 @@
 
   @media (min-width: 768px) {
     min-height: 100dvh;
-    margin-left: 220px;
+    margin-left: var(--sidebar-width);
   }
 
   .upload-header {
@@ -192,7 +192,7 @@
       border: 2px solid #333;
       border-top-color: #7ec8a4;
       border-radius: 50%;
-      animation: spin 0.6s linear infinite;
+      animation: spin var(--spin-speed) linear infinite;
     }
   }
 
@@ -230,10 +230,6 @@
   }
 }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
 // ── Upload overlay ──
 .upload-overlay {
   position: fixed;
@@ -242,7 +238,7 @@
   right: 0;
   bottom: 0;
   background: rgba(0, 0, 0, 0.85);
-  z-index: 500;
+  z-index: var(--z-lightbox);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -278,5 +274,5 @@
   border: 3px solid #2a2a2a;
   border-top-color: #7ec8a4;
   border-radius: 50%;
-  animation: spin 0.8s linear infinite;
+  animation: spin var(--spin-speed) linear infinite;
 }

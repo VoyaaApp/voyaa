@@ -1,34 +1,43 @@
 <div class="activity-page">
   <div class="activity-header">
-    <button class="back-btn" (click)="goBack()">
+    <button class="back-btn" (click)="goBack()" aria-label="Go back">
       <span class="material-symbols-rounded">arrow_back</span>
     </button>
-    <div class="header-tabs">
-      <button class="header-tab" [class.active]="activeTab === 'activity'" (click)="switchTab('activity')">Activity</button>
-      <button class="header-tab" [class.active]="activeTab === 'messages'" (click)="switchTab('messages')">Messages</button>
-    </div>
+    <h1 class="header-title">Activity</h1>
+    @if (notifications.length > 0) {
+      <button class="clear-btn" (click)="clearNotifications()" aria-label="Clear all notifications">
+        <span class="material-symbols-rounded">delete_sweep</span>
+      </button>
+    }
   </div>
 
-  @if (activeTab === 'activity') {
-    @if (loading) {
-      <div class="activity-list">
-        @for (i of [1,2,3,4,5]; track i) {
-          <div class="activity-item skeleton-item">
-            <div class="skeleton-avatar"></div>
-            <div class="skeleton-text"></div>
-          </div>
-        }
+  @if (loading) {
+    <div class="activity-list">
+      @for (i of [1,2,3,4,5]; track i) {
+        <div class="activity-item skeleton-item">
+          <div class="skeleton-avatar"></div>
+          <div class="skeleton-text"></div>
+        </div>
+      }
       </div>
     }
 
-    @if (!loading && notifications.length === 0) {
+    @if (!loading && loadError) {
+      <div class="empty-state">
+        <span class="material-symbols-rounded">wifi_off</span>
+        <p>Couldn't load activity</p>
+        <button class="retry-btn" (click)="retryLoad()">Try again</button>
+      </div>
+    }
+
+    @if (!loading && !loadError && notifications.length === 0) {
       <div class="empty-state">
         <span class="material-symbols-rounded">notifications_none</span>
         <p>No activity yet</p>
       </div>
     }
 
-    @if (!loading && notifications.length > 0) {
+    @if (!loading && !loadError && notifications.length > 0) {
       <div class="activity-list">
         @for (notif of notifications; track notif.id) {
           <div class="activity-item" [class.unread]="!notif.read">
@@ -51,81 +60,4 @@
         }
       </div>
     }
-  }
-
-  @if (activeTab === 'messages') {
-    <!-- Search -->
-    <div class="msg-toolbar">
-      <button class="msg-new-btn" (click)="showSearch = !showSearch">
-        <span class="material-symbols-rounded">{{ showSearch ? 'close' : 'edit_square' }}</span>
-        <span>{{ showSearch ? 'Cancel' : 'New message' }}</span>
-      </button>
-    </div>
-
-    @if (showSearch) {
-      <div class="msg-search-section">
-        <div class="msg-search-bar">
-          <span class="material-symbols-rounded search-icon">search</span>
-          <input type="text" [(ngModel)]="searchQuery" (input)="onSearchInput()" placeholder="Search users..." autofocus>
-        </div>
-        @if (searchResults.length > 0) {
-          <div class="msg-search-results">
-            @for (user of searchResults; track user.uid) {
-              <div class="msg-user-row" (click)="startConversation(user.uid)">
-                <div class="msg-avatar">
-                  @if (user.photoURL) {
-                    <img [src]="user.photoURL" alt="">
-                  } @else {
-                    <span class="material-symbols-rounded">account_circle</span>
-                  }
-                </div>
-                <span class="msg-username">{{ user.username }}</span>
-              </div>
-            }
-          </div>
-        }
-      </div>
-    }
-
-    @if (messagesLoading) {
-      <div class="activity-list">
-        @for (i of [1,2,3]; track i) {
-          <div class="activity-item skeleton-item">
-            <div class="skeleton-avatar"></div>
-            <div class="skeleton-text"></div>
-          </div>
-        }
-      </div>
-    } @else if (conversations.length === 0 && !showSearch) {
-      <div class="empty-state">
-        <span class="material-symbols-rounded">chat_bubble_outline</span>
-        <p>No messages yet</p>
-        <button class="start-btn" (click)="showSearch = true">Start a conversation</button>
-      </div>
-    } @else {
-      <div class="conversation-list">
-        @for (convo of conversations; track convo.id) {
-          <div class="convo-row" [class.unread]="convo.unreadCount > 0" (click)="openChat(convo)">
-            <div class="convo-avatar">
-              @if (convo.recipientAvatar) {
-                <img [src]="convo.recipientAvatar" alt="">
-              } @else {
-                <span class="material-symbols-rounded">account_circle</span>
-              }
-            </div>
-            <div class="convo-info">
-              <div class="convo-top">
-                <span class="convo-name">{{ convo.recipientName }}</span>
-                <span class="convo-time">{{ msgTimeAgo(convo.lastMessageTime) }}</span>
-              </div>
-              <p class="convo-preview" [class.unread-text]="convo.unreadCount > 0">{{ convo.lastMessage || 'No messages yet' }}</p>
-            </div>
-            @if (convo.unreadCount > 0) {
-              <span class="unread-badge">{{ convo.unreadCount > 9 ? '9+' : convo.unreadCount }}</span>
-            }
-          </div>
-        }
-      </div>
-    }
-  }
 </div>

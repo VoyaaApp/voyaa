@@ -1,0 +1,113 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper: user is authenticated
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    // Helper: user owns this document
+    function isOwner(userId) {
+      return isAuth() && request.auth.uid == userId;
+    }
+
+    // Helper: string field is present and within length
+    function validString(field, maxLen) {
+      return field is string && field.size() > 0 && field.size() <= maxLen;
+    }
+
+    // Users
+    match /users/{userId} {
+      allow read: if isAuth();
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if false;
+
+      // Followers / Following subcollections
+      match /followers/{followerId} {
+        allow read: if isAuth();
+        allow write: if isAuth();
+      }
+      match /following/{followingId} {
+        allow read: if isAuth();
+        allow write: if isAuth();
+      }
+
+      // Notifications
+      match /notifications/{notifId} {
+        allow read: if isOwner(userId);
+        allow create: if isAuth();
+        allow update: if isOwner(userId);
+        allow delete: if isOwner(userId);
+      }
+
+      // Bookmarks
+      match /bookmarks/{bookmarkId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    // Videos
+    match /videos/{videoId} {
+      allow read: if true;
+      allow create: if isAuth()
+        && request.resource.data.userId == request.auth.uid
+        && validString(request.resource.data.title, 200);
+      allow update: if isAuth()
+        && resource.data.userId == request.auth.uid;
+      allow delete: if isAuth()
+        && resource.data.userId == request.auth.uid;
+
+      // Comments on videos
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if isAuth()
+          && request.resource.data.userId == request.auth.uid
+          && validString(request.resource.data.text, 1000);
+        allow update: if isAuth()
+          && resource.data.userId == request.auth.uid;
+        allow delete: if isAuth()
+          && resource.data.userId == request.auth.uid;
+      }
+    }
+
+    // Posts (image posts)
+    match /posts/{postId} {
+      allow read: if true;
+      allow create: if isAuth()
+        && request.resource.data.userId == request.auth.uid
+        && validString(request.resource.data.title, 200);
+      allow update: if isAuth()
+        && resource.data.userId == request.auth.uid;
+      allow delete: if isAuth()
+        && resource.data.userId == request.auth.uid;
+
+      // Comments on posts
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if isAuth()
+          && request.resource.data.userId == request.auth.uid
+          && validString(request.resource.data.text, 1000);
+        allow update: if isAuth()
+          && resource.data.userId == request.auth.uid;
+        allow delete: if isAuth()
+          && resource.data.userId == request.auth.uid;
+      }
+    }
+
+    // Reports
+    match /reports/{reportId} {
+      allow create: if isAuth()
+        && request.resource.data.reporterId == request.auth.uid;
+      allow read: if false;
+      allow update, delete: if false;
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

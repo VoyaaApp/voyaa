@@ -8,7 +8,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 0 16px;
-  z-index: 100;
+  z-index: var(--z-dropdown);
   pointer-events: none;
 
   .logo {
@@ -19,13 +19,19 @@
     pointer-events: auto;
   }
 
-  .bell-btn {
+  .top-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    pointer-events: auto;
+  }
+
+  .top-icon-btn {
     position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
     text-decoration: none;
-    pointer-events: auto;
 
     .material-symbols-rounded {
       font-size: 26px;

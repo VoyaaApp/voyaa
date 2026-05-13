@@ -6,6 +6,7 @@ import { environment } from '../../environments/environment';
 import { AuthService } from '../../core/services/auth.service';
 import { db } from '../../core/services/firebase.service';
 import { collection, addDoc } from 'firebase/firestore';
+import { ContentFilterService } from '../../core/services/content-filter.service';
 
 interface LocationSuggestion {
   display: string;
@@ -26,6 +27,7 @@ export class Upload implements OnDestroy {
   private location = inject(Location);
   private authService = inject(AuthService);
   private cdr = inject(ChangeDetectorRef);
+  private contentFilter = inject(ContentFilterService);
 
   goBack() {
     this.location.back();
@@ -38,6 +40,7 @@ export class Upload implements OnDestroy {
   uploadProgress = 0;
   uploadStatus = '';
   errorMessage = '';
+  showSuccessToast = false;
 
   // Location autocomplete
   locationQuery = '';
@@ -66,6 +69,7 @@ export class Upload implements OnDestroy {
       }
       this.selectedFile = input.files[0];
       this.videoPreviewUrl = URL.createObjectURL(this.selectedFile);
+      this.cdr.detectChanges();
     }
   }
 
@@ -87,8 +91,9 @@ export class Upload implements OnDestroy {
         q: query,
         format: 'json',
         addressdetails: '1',
-        limit: '5',
+        limit: '8',
         'accept-language': 'en',
+        dedupe: '1',
       });
       const res = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
         headers: { 'User-Agent': 'Voyaa/1.0' },
@@ -100,8 +105,9 @@ export class Upload implements OnDestroy {
           const addr = r.address || {};
           const city = addr.city || addr.town || addr.village || addr.county || addr.state || '';
           const country = addr.country || '';
-          if (!city || !country) return null;
-          return { display: `${city}, ${country}`, city, country, lat: parseFloat(r.lat), lon: parseFloat(r.lon) };
+          if (!country) return null;
+          const display = city ? `${city}, ${country}` : country;
+          return { display, city, country, lat: parseFloat(r.lat), lon: parseFloat(r.lon) };
         })
         .filter((s: any): s is LocationSuggestion => s !== null)
         // Deduplicate by display string
@@ -157,6 +163,11 @@ export class Upload implements OnDestroy {
       return;
     }
 
+    if (!this.contentFilter.isClean(this.title)) {
+      this.errorMessage = 'Your title contains inappropriate language. Please revise it.';
+      return;
+    }
+
     this.isUploading = true;
     this.uploadProgress = 0;
     this.uploadStatus = 'Uploading video...';
@@ -209,11 +220,14 @@ export class Upload implements OnDestroy {
         createdAt: new Date().toISOString(),
       });
 
-      this.router.navigate(['/feed']);
+      this.isUploading = false;
+      this.showSuccessToast = true;
+      this.cdr.detectChanges();
+      setTimeout(() => this.router.navigate(['/feed']), 1500);
     } catch (error: any) {
       this.errorMessage = error.message || 'Something went wrong.';
-    } finally {
       this.isUploading = false;
+      this.cdr.detectChanges();
     }
   }
 }

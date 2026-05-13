@@ -1,14 +1,5 @@
 <app-top-bar></app-top-bar>
 
-<app-confirm-dialog
-  [visible]="showConfirm"
-  [message]="confirmMessage"
-  confirmText="Delete"
-  [destructive]="true"
-  (confirmed)="onConfirmed()"
-  (cancelled)="onCancelled()"
-/>
-
 @if (loading) {
   <div class="feed-container">
     <div class="video-card skeleton">
@@ -41,7 +32,7 @@
   </div>
 }
 <div class="feed-container" #feedContainer (touchstart)="onTouchStart($event)" (touchmove)="onTouchMove($event)" (touchend)="onTouchEnd()">
-    @for (video of videos; track video.id) {
+    @for (video of videos; track video.id; let i = $index) {
         <div class="video-card">
             <video #videoPlayer [src]="video.cloudinaryUrl" loop [muted]="isMuted" playsinline
               (pointerdown)="onPointerDown($event, video)"
@@ -56,7 +47,6 @@
                     }
                   </a>
                   <a class="creator" [routerLink]="['/profile', video.userId]">{{ video.username }}</a>
-                  <span class="timestamp">{{ timeAgo(video.createdAt) }}</span>
                   @if (video.userId !== authService.currentUser()?.uid) {
                     <button class="follow-btn" [class.following]="video.following" [class.animating]="video.followAnimating" (click)="toggleFollow(video)">
                       {{ video.following ? 'Following' : 'Follow' }}
@@ -64,34 +54,63 @@
                   }
                 </div>
                 <span class="title">{{ video.title }}</span>
-                <a class="location-pill" [routerLink]="['/destination', video.location.country]" (click)="$event.stopPropagation()">
-                  <span class="material-symbols-rounded location-icon">location_on</span>
-                  <span>{{ video.location.city }}, {{ video.location.country }}</span>
-                </a>
+                <div class="detail-row">
+                  <a class="location-pill" [routerLink]="['/destination', video.location.country]" (click)="$event.stopPropagation()">
+                    <span class="material-symbols-rounded location-icon">location_on</span>
+                    <span>{{ video.location.city }}, {{ video.location.country }}</span>
+                  </a>
+                  <span class="timestamp">{{ timeAgo(video.createdAt) }}</span>
+                </div>
             </div>
             <div class="actions" (click)="$event.stopPropagation()">
-                <button class="action-btn" [class.liked]="video.liked" [class.animating]="video.likeAnimating" (click)="toggleLike(video)">
+                <button class="action-btn" [class.liked]="video.liked" [class.animating]="video.likeAnimating" (click)="toggleLike(video)" aria-label="Like">
                     <span class="material-symbols-rounded">{{ video.liked ? 'favorite' : 'favorite_border' }}</span>
                     <span class="count">{{ formatCount(video.likeCount) }}</span>
                 </button>
-                <button class="action-btn" (click)="openComments(video)">
+                <button class="action-btn" (click)="openComments(video)" aria-label="Comments">
                     <span class="material-symbols-rounded">chat_bubble</span>
                     <span class="count">{{ formatCount(video.commentCount) }}</span>
                 </button>
-                <button class="action-btn">
-                    <span class="material-symbols-rounded">visibility</span>
-                    <span class="count">{{ formatCount(video.viewCount || 0) }}</span>
+                <button class="action-btn" (click)="onShare(video)" aria-label="Share post">
+                    <span class="material-symbols-rounded">share</span>
                 </button>
-                <button class="action-btn" [class.bookmarked]="video.bookmarked" (click)="toggleBookmark(video)">
+                <button class="action-btn" [class.bookmarked]="video.bookmarked" (click)="toggleBookmark(video)" aria-label="Save">
                     <span class="material-symbols-rounded">{{ video.bookmarked ? 'bookmark' : 'bookmark_border' }}</span>
                 </button>
+                @if (authService.currentUser()?.uid) {
+                  <div class="menu-wrapper">
+                    <button class="action-btn" (click)="video.showMenu = !video.showMenu" aria-label="More options">
+                      <span class="material-symbols-rounded">more_horiz</span>
+                    </button>
+                    @if (video.showMenu) {
+                      <div class="menu-backdrop" (click)="video.showMenu = false"></div>
+                      <div class="menu-dropdown">
+                        @if (video.userId === authService.currentUser()?.uid) {
+                          <button class="menu-item" (click)="video.showMenu = false; deleteVideo(video)">
+                            <span class="material-symbols-rounded">delete</span>
+                            Delete
+                          </button>
+                        } @else {
+                          <button class="menu-item" (click)="video.showMenu = false; openReport(video)">
+                            <span class="material-symbols-rounded">flag</span>
+                            Report
+                          </button>
+                          <button class="menu-item" (click)="video.showMenu = false; confirmBlock(video)">
+                            <span class="material-symbols-rounded">block</span>
+                            Block user
+                          </button>
+                        }
+                      </div>
+                    }
+                  </div>
+                }
             </div>
             @if (video.showHeart) {
               <div class="heart-animation">
                 <span class="material-symbols-rounded">favorite</span>
               </div>
             }
-            @if (showPauseIndicator) {
+            @if (showPauseIndicator && i === currentIndex) {
               <div class="pause-controls" [class.fade-out]="pauseIndicatorFading">
                 <div class="pause-indicator">
                   <span class="material-symbols-rounded">{{ isPaused ? 'pause' : 'play_arrow' }}</span>
@@ -109,107 +128,54 @@
 }
 }
 
-@if (showComments) {
-  <div class="comments-backdrop" (click)="closeComments()"></div>
-  <div class="comments-panel">
-    <div class="comments-header">
-      <h3>Comments</h3>
-      <button class="close-btn" (click)="closeComments()">
-        <span class="material-symbols-rounded">close</span>
-      </button>
-    </div>
-    <div class="comments-list">
-      @for (comment of comments; track comment.id) {
-        <div class="comment-thread">
-          <div class="comment">
-            <div class="comment-avatar">
-              @if (comment.photoURL) {
-                <img [src]="comment.photoURL" alt="avatar">
-              } @else {
-                <span class="material-symbols-rounded">account_circle</span>
-              }
-            </div>
-            <div class="comment-body">
-              <div class="comment-top">
-                <a class="comment-user" [routerLink]="['/profile', comment.userId]">{{ comment.username }}</a>
-                <span class="comment-time">{{ timeAgo(comment.createdAt) }}</span>
-              </div>
-              <span class="comment-text">{{ comment.text }}</span>
-              <div class="comment-actions">
-                <button class="comment-action-btn" [class.liked]="comment.liked" (click)="toggleCommentLike(comment)">
-                  <span class="material-symbols-rounded">{{ comment.liked ? 'favorite' : 'favorite_border' }}</span>
-                  @if (comment.likeCount) { <span>{{ comment.likeCount }}</span> }
-                </button>
-                <button class="comment-action-btn" (click)="startReply(comment)">
-                  <span class="material-symbols-rounded">reply</span>
-                  <span>Reply</span>
-                </button>
-              </div>
-            </div>
-            @if (comment.userId === authService.currentUser()?.uid) {
-              <button class="comment-delete" (click)="deleteComment(comment)">
-                <span class="material-symbols-rounded">close</span>
-              </button>
-            }
-          </div>
-          @if (comment.replyCount > 0) {
-            <button class="toggle-replies" (click)="comment.showReplies = !comment.showReplies">
-              <span class="material-symbols-rounded">{{ comment.showReplies ? 'expand_less' : 'expand_more' }}</span>
-              {{ comment.showReplies ? 'Hide' : 'View' }} {{ comment.replyCount }} {{ comment.replyCount === 1 ? 'reply' : 'replies' }}
-            </button>
-          }
-          @if (comment.showReplies) {
-            @for (reply of comment.replies; track reply.id) {
-              <div class="comment reply">
-                <div class="comment-avatar">
-                  @if (reply.photoURL) {
-                    <img [src]="reply.photoURL" alt="avatar">
-                  } @else {
-                    <span class="material-symbols-rounded">account_circle</span>
-                  }
-                </div>
-                <div class="comment-body">
-                  <div class="comment-top">
-                    <a class="comment-user" [routerLink]="['/profile', reply.userId]">{{ reply.username }}</a>
-                    <span class="comment-time">{{ timeAgo(reply.createdAt) }}</span>
-                  </div>
-                  <span class="comment-text">{{ reply.text }}</span>
-                  <div class="comment-actions">
-                    <button class="comment-action-btn" [class.liked]="reply.liked" (click)="toggleCommentLike(reply)">
-                      <span class="material-symbols-rounded">{{ reply.liked ? 'favorite' : 'favorite_border' }}</span>
-                      @if (reply.likeCount) { <span>{{ reply.likeCount }}</span> }
-                    </button>
-                  </div>
-                </div>
-                @if (reply.userId === authService.currentUser()?.uid) {
-                  <button class="comment-delete" (click)="deleteComment(reply)">
-                    <span class="material-symbols-rounded">close</span>
-                  </button>
-                }
-              </div>
-            }
-          }
-        </div>
-      }
-      @if (comments.length === 0) {
-        <p class="no-comments">No comments yet. Be the first!</p>
-      }
-    </div>
-    <div class="comment-input">
-      @if (replyingTo) {
-        <div class="reply-indicator">
-          <span>Replying to <strong>{{ replyingTo.username }}</strong></span>
-          <button (click)="cancelReply()">
-            <span class="material-symbols-rounded">close</span>
-          </button>
-        </div>
-      }
-      <div class="input-row">
-        <input type="text" [(ngModel)]="newComment" [placeholder]="replyingTo ? 'Write a reply...' : 'Add a comment...'" (keyup.enter)="postComment()" [disabled]="posting">
-        <button (click)="postComment()" [disabled]="!newComment.trim() || posting">
-          <span class="material-symbols-rounded">send</span>
-        </button>
-      </div>
-    </div>
-  </div>
+<app-comment-panel
+  [visible]="showComments"
+  collectionType="videos"
+  [itemId]="commentsVideoId"
+  [itemOwnerId]="commentsOwnerId"
+  [itemTitle]="commentsTitle"
+  (closed)="closeComments()"
+  (commentCountChange)="onCommentCountChange($event)"
+/>
+
+@if (showCopiedToast) {
+  <div class="copied-toast">Link copied to clipboard</div>
 }
+
+<app-report-panel
+  [visible]="showReportPanel"
+  [contentId]="reportContentId"
+  [contentType]="reportContentType"
+  [contentOwnerId]="reportContentOwnerId"
+  (closed)="closeReport()"
+/>
+
+<app-confirm-dialog
+  [visible]="showBlockConfirm"
+  [message]="'Block ' + blockTargetName + '? They will not be able to message you.'"
+  confirmText="Block"
+  [destructive]="true"
+  (confirmed)="doBlock()"
+  (cancelled)="cancelBlock()"
+/>
+
+<app-confirm-dialog
+  [visible]="showDeleteConfirm"
+  message="Delete this video? This can't be undone."
+  confirmText="Delete"
+  [destructive]="true"
+  (confirmed)="doDeleteVideo()"
+  (cancelled)="cancelDeleteVideo()"
+/>
+
+@if (deleteError) {
+  <div class="error-toast">Could not delete. Try again.</div>
+}
+
+<app-trip-picker
+  [visible]="showTripPicker"
+  [trips]="trips"
+  (selected)="onTripSelected($event)"
+  (closed)="closeTripPicker()"
+  (tripCreated)="onTripCreated($event)"
+/>

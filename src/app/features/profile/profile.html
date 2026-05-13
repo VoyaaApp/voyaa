@@ -46,9 +46,20 @@
 
 <div class="profile-header">
   <img src="Voyaa-colour.png" alt="Voyaa" class="header-logo">
-  <a class="header-bell" routerLink="/activity">
-    <span class="material-symbols-rounded">notifications</span>
-  </a>
+  <div class="header-actions">
+    <a class="header-icon" routerLink="/messages" aria-label="Messages">
+      <span class="material-symbols-rounded">chat_bubble</span>
+      @if (unreadMessages > 0) {
+        <span class="header-badge">{{ unreadMessages > 9 ? '9+' : unreadMessages }}</span>
+      }
+    </a>
+    <a class="header-icon" routerLink="/activity" aria-label="Notifications">
+      <span class="material-symbols-rounded">notifications</span>
+      @if (unreadNotifications > 0) {
+        <span class="header-badge">{{ unreadNotifications > 9 ? '9+' : unreadNotifications }}</span>
+      }
+    </a>
+  </div>
 </div>
 
 @if (loading) {
@@ -191,6 +202,10 @@
             @if (showMenu) {
               <div class="menu-backdrop" (click)="closeMenu()"></div>
               <div class="menu-dropdown">
+                <a class="menu-item" routerLink="/settings" (click)="closeMenu()">
+                  <span class="material-symbols-rounded">settings</span>
+                  Settings
+                </a>
                 <button class="menu-item" (click)="logout()">
                   <span class="material-symbols-rounded">logout</span>
                   Log Out
@@ -201,12 +216,34 @@
         </div>
       } @else {
         <div class="profile-actions">
-          <button class="follow-btn" [class.following]="isFollowing" (click)="toggleFollow()">
-            {{ isFollowing ? 'Following' : 'Follow' }}
-          </button>
-          <button class="message-btn" (click)="sendMessage()">
-            <span class="material-symbols-rounded">chat_bubble_outline</span>
-          </button>
+          @if (!blockedByThem && !isBlocked) {
+            <button class="follow-btn" [class.following]="isFollowing" (click)="toggleFollow()">
+              {{ isFollowing ? 'Following' : 'Follow' }}
+            </button>
+          }
+          @if (!isBlocked && !blockedByThem) {
+            <button class="message-btn" (click)="sendMessage()">
+              <span class="material-symbols-rounded">chat_bubble_outline</span>
+            </button>
+          }
+          <div class="menu-wrapper">
+            <button class="menu-btn" (click)="showOtherMenu = !showOtherMenu" aria-label="More options">
+              <span class="material-symbols-rounded">more_horiz</span>
+            </button>
+            @if (showOtherMenu) {
+              <div class="menu-backdrop" (click)="showOtherMenu = false"></div>
+              <div class="menu-dropdown">
+                <button class="menu-item" (click)="blockUser()">
+                  <span class="material-symbols-rounded">block</span>
+                  {{ isBlocked ? 'Unblock' : 'Block' }}
+                </button>
+                <button class="menu-item" (click)="reportUser()">
+                  <span class="material-symbols-rounded">flag</span>
+                  Report
+                </button>
+              </div>
+            }
+          </div>
         </div>
       }
     </div>
@@ -242,6 +279,12 @@
       </div>
     }
 
+    @if (blockedByThem && !isOwnProfile) {
+      <div class="blocked-profile-notice">
+        <span class="material-symbols-rounded">lock</span>
+        <p>This content is not available.</p>
+      </div>
+    } @else {
     <div class="tab-bar">
       <button class="tab" [class.active]="activeTab === 'posts'" (click)="switchTab('posts')">
         <span class="material-symbols-rounded">grid_on</span>
@@ -264,7 +307,7 @@
                 <span class="material-symbols-rounded">play_arrow</span>
               </div>
               @if (isOwnProfile) {
-                <button class="delete-btn" (click)="deleteVideo(item, $event)">
+                <button class="delete-btn" (click)="$event.stopPropagation(); deleteVideo(item)">
                   <span class="material-symbols-rounded">delete</span>
                 </button>
               }
@@ -294,17 +337,38 @@
 
     @if (activeTab === 'saved') {
       @if (!showSavedGroup) {
+        @if (isOwnProfile && savedTrips.length > 0) {
+          <div class="saved-edit-bar">
+            <button class="edit-toggle" (click)="savedEditMode = !savedEditMode">
+              {{ savedEditMode ? 'Done' : 'Edit' }}
+            </button>
+          </div>
+        }
         <div class="saved-grid">
-          @for (group of savedGroups; track group.country) {
-            <div class="saved-card" (click)="openSavedGroup(group)">
-              <img [src]="group.thumbnail.includes('/video/') ? getThumbUrl(group.thumbnail) : group.thumbnail" alt="" loading="lazy">
+          @for (entry of savedTrips; track entry.trip.id) {
+            <div class="saved-card" (click)="openSavedGroup(entry)">
+              @if (entry.coverUrl) {
+                <img [src]="entry.coverUrl" alt="" loading="lazy">
+              } @else {
+                <div class="saved-card-placeholder">
+                  <span class="material-symbols-rounded">{{ entry.trip.id === '__wishlist__' ? 'bookmark' : 'luggage' }}</span>
+                </div>
+              }
               <div class="saved-card-overlay">
-                <span class="saved-country">{{ group.country }}</span>
-                <span class="saved-count">{{ group.videos.length }} {{ group.videos.length === 1 ? 'post' : 'posts' }}</span>
+                <span class="saved-country">{{ entry.trip.name }}</span>
+                <span class="saved-count">{{ entry.bookmarks.length }} {{ entry.bookmarks.length === 1 ? 'post' : 'posts' }}</span>
+                @if (entry.trip.date) {
+                  <span class="saved-countdown">{{ getCountdown(entry.trip.date) }}</span>
+                }
               </div>
+              @if (savedEditMode) {
+                <button class="delete-badge" (click)="deleteSavedTrip(entry, $event)" aria-label="Delete trip">
+                  <span class="material-symbols-rounded">close</span>
+                </button>
+              }
             </div>
           }
-          @if (savedGroups.length === 0) {
+          @if (savedTrips.length === 0) {
             <div class="empty-state">
               <span class="material-symbols-rounded">bookmark_border</span>
               <p>No saved posts yet</p>
@@ -316,8 +380,46 @@
           <button class="back-btn" (click)="closeSavedGroup()">
             <span class="material-symbols-rounded">arrow_back</span>
           </button>
-          <h3>{{ savedGroupCountry }}</h3>
+          <h3>{{ savedGroupTrip?.name }}</h3>
+          @if (savedGroupTrip?.date) {
+            <span class="trip-countdown-badge">{{ getCountdown(savedGroupTrip!.date!) }}</span>
+          }
+          <div class="saved-group-actions">
+            @if (savedGroupVideos.length > 0) {
+              <button class="map-btn" (click)="tripMapTrip = savedGroupTrip; tripMapBookmarks = savedGroupVideos; showTripMap = true">
+                <span class="material-symbols-rounded">map</span>
+              </button>
+            }
+            @if (isOwnProfile && savedGroupTrip?.id !== '__wishlist__') {
+              <button class="edit-toggle" (click)="openEditTrip()">
+                <span class="material-symbols-rounded" style="font-size: 18px">edit</span>
+              </button>
+            }
+            @if (isOwnProfile) {
+              <button class="edit-toggle" (click)="savedEditMode = !savedEditMode">
+                {{ savedEditMode ? 'Done' : 'Edit' }}
+              </button>
+            }
+          </div>
         </div>
+
+        @if (showEditTrip) {
+          <div class="edit-trip-form">
+            <input type="text" [(ngModel)]="editTripName" class="edit-trip-input" placeholder="Trip name" maxlength="50">
+            <div class="edit-trip-date-row">
+              <label>
+                <span class="material-symbols-rounded">calendar_today</span>
+                Departure date
+              </label>
+              <input type="date" [(ngModel)]="editTripDate" class="edit-trip-date" style="color-scheme: dark">
+            </div>
+            <div class="edit-trip-actions">
+              <button class="cancel-btn" (click)="showEditTrip = false">Cancel</button>
+              <button class="confirm-btn" [disabled]="!editTripName.trim()" (click)="saveEditTrip()">Save</button>
+            </div>
+          </div>
+        }
+
         <div class="video-grid">
           @for (video of savedGroupVideos; track video.id; let i = $index) {
             <div class="grid-item" (click)="onSavedItemClick(video)">
@@ -333,6 +435,11 @@
                 <div class="grid-overlay">
                   <span class="material-symbols-rounded">play_arrow</span>
                 </div>
+              }
+              @if (savedEditMode) {
+                <button class="delete-badge" (click)="deleteSavedItem(video, $event)" aria-label="Remove saved post">
+                  <span class="material-symbols-rounded">close</span>
+                </button>
               }
             </div>
           }
@@ -353,10 +460,10 @@
           <div class="empty-state">
             <span class="material-symbols-rounded">flag</span>
             <p>No country stamps yet</p>
-            <p class="empty-sub">Post videos from different countries to collect stamps</p>
           </div>
         }
       </div>
+    }
     }
   </div>
 }
@@ -399,13 +506,28 @@
               <span class="material-symbols-rounded">chat_bubble</span>
               <span class="count">{{ video.commentCount }}</span>
             </button>
-            <button class="action-btn">
-              <span class="material-symbols-rounded">visibility</span>
-              <span class="count">{{ video.viewCount || 0 }}</span>
+            <button class="action-btn" (click)="onShare(video)" aria-label="Share post">
+              <span class="material-symbols-rounded">share</span>
             </button>
             <button class="action-btn" [class.bookmarked]="video.bookmarked" (click)="toggleBookmark(video)">
               <span class="material-symbols-rounded">{{ video.bookmarked ? 'bookmark' : 'bookmark_border' }}</span>
             </button>
+            @if (isOwnProfile) {
+              <div class="menu-wrapper">
+                <button class="action-btn" (click)="$event.stopPropagation(); video.showMenu = !video.showMenu">
+                  <span class="material-symbols-rounded">more_horiz</span>
+                </button>
+                @if (video.showMenu) {
+                  <div class="menu-backdrop" (click)="video.showMenu = false"></div>
+                  <div class="menu-dropdown">
+                    <button class="menu-item" (click)="video.showMenu = false; deleteVideo(video)">
+                      <span class="material-symbols-rounded">delete</span>
+                      Delete
+                    </button>
+                  </div>
+                }
+              </div>
+            }
           </div>
           @if (video.showHeart) {
             <div class="heart-animation">
@@ -429,122 +551,125 @@
     </div>
   </div>
 
-  @if (showComments) {
-    <div class="comments-backdrop" (click)="closeComments()"></div>
-    <div class="comments-panel">
-      <div class="comments-header">
-        <h3>Comments</h3>
-        <button class="close-btn" (click)="closeComments()">
-          <span class="material-symbols-rounded">close</span>
-        </button>
-      </div>
-      <div class="comments-list">
-        @for (comment of comments; track comment.id) {
-          <div class="comment-thread">
-            <div class="comment">
-              <div class="comment-avatar">
-                @if (comment.photoURL) {
-                  <img [src]="comment.photoURL" alt="avatar">
-                } @else {
-                  <span class="material-symbols-rounded">account_circle</span>
-                }
-              </div>
-              <div class="comment-body">
-                <div class="comment-top">
-                  <a class="comment-user" [routerLink]="['/profile', comment.userId]">{{ comment.username }}</a>
-                  <span class="comment-time">{{ timeAgo(comment.createdAt) }}</span>
-                </div>
-                <span class="comment-text">{{ comment.text }}</span>
-                <div class="comment-actions">
-                  <button class="comment-action-btn" [class.liked]="comment.liked" (click)="toggleCommentLike(comment)">
-                    <span class="material-symbols-rounded">{{ comment.liked ? 'favorite' : 'favorite_border' }}</span>
-                    @if (comment.likeCount) { <span>{{ comment.likeCount }}</span> }
-                  </button>
-                  <button class="comment-action-btn" (click)="startReply(comment)">
-                    <span class="material-symbols-rounded">reply</span>
-                    <span>Reply</span>
-                  </button>
-                </div>
-              </div>
-              @if (comment.userId === authService.currentUser()?.uid) {
-                <button class="comment-delete" (click)="deleteComment(comment)">
-                  <span class="material-symbols-rounded">close</span>
-                </button>
-              }
-            </div>
-            @if (comment.replyCount > 0) {
-              <button class="toggle-replies" (click)="comment.showReplies = !comment.showReplies">
-                <span class="material-symbols-rounded">{{ comment.showReplies ? 'expand_less' : 'expand_more' }}</span>
-                {{ comment.showReplies ? 'Hide' : 'View' }} {{ comment.replyCount }} {{ comment.replyCount === 1 ? 'reply' : 'replies' }}
-              </button>
-            }
-            @if (comment.showReplies) {
-              @for (reply of comment.replies; track reply.id) {
-                <div class="comment reply">
-                  <div class="comment-avatar">
-                    @if (reply.photoURL) {
-                      <img [src]="reply.photoURL" alt="avatar">
-                    } @else {
-                      <span class="material-symbols-rounded">account_circle</span>
-                    }
-                  </div>
-                  <div class="comment-body">
-                    <div class="comment-top">
-                      <a class="comment-user" [routerLink]="['/profile', reply.userId]">{{ reply.username }}</a>
-                      <span class="comment-time">{{ timeAgo(reply.createdAt) }}</span>
-                    </div>
-                    <span class="comment-text">{{ reply.text }}</span>
-                    <div class="comment-actions">
-                      <button class="comment-action-btn" [class.liked]="reply.liked" (click)="toggleCommentLike(reply)">
-                        <span class="material-symbols-rounded">{{ reply.liked ? 'favorite' : 'favorite_border' }}</span>
-                        @if (reply.likeCount) { <span>{{ reply.likeCount }}</span> }
-                      </button>
-                    </div>
-                  </div>
-                  @if (reply.userId === authService.currentUser()?.uid) {
-                    <button class="comment-delete" (click)="deleteComment(reply)">
-                      <span class="material-symbols-rounded">close</span>
-                    </button>
-                  }
-                </div>
-              }
-            }
-          </div>
-        }
-        @if (comments.length === 0) {
-          <p class="no-comments">No comments yet. Be the first!</p>
-        }
-      </div>
-      <div class="comment-input">
-        @if (replyingTo) {
-          <div class="reply-indicator">
-            <span>Replying to <strong>{{ replyingTo.username }}</strong></span>
-            <button (click)="cancelReply()">
-              <span class="material-symbols-rounded">close</span>
-            </button>
-          </div>
-        }
-        <div class="input-row">
-          <input type="text" [(ngModel)]="newComment" [placeholder]="replyingTo ? 'Write a reply...' : 'Add a comment...'" (keyup.enter)="postComment()">
-          <button (click)="postComment()" [disabled]="!newComment.trim()">
-            <span class="material-symbols-rounded">send</span>
-          </button>
-        </div>
-      </div>
-    </div>
-  }
+  <app-comment-panel
+    [visible]="showComments"
+    collectionType="videos"
+    [itemId]="commentsVideoId"
+    [itemOwnerId]="commentsOwnerId"
+    [itemTitle]="commentsTitle"
+    (closed)="closeComments()"
+    (commentCountChange)="onCommentCountChange($event)"
+  />
 }
 
 @if (showImageViewer && imageViewerPost) {
-  <app-image-viewer
-    [images]="getPostImageUrls(imageViewerPost)"
-    [title]="imageViewerPost.title || ''"
-    [username]="profileUser?.username || ''"
-    [userAvatar]="profileUser?.photoURL || ''"
-    [location]="imageViewerPost.location ? imageViewerPost.location.city + ', ' + imageViewerPost.location.country : ''"
-    [likeCount]="imageViewerPost.likeCount || 0"
-    [liked]="imageViewerPost.liked"
-    (close)="closeImageViewer()"
-    (toggleLike)="toggleImagePostLike()"
+  <div class="image-post-backdrop" (click)="closeImageViewer()"></div>
+  <div class="image-post-overlay" (click)="closeImageViewer()">
+    <button class="image-post-close" (click)="$event.stopPropagation(); closeImageViewer()">
+      <span class="material-symbols-rounded">close</span>
+    </button>
+    <div class="image-post-card" (click)="$event.stopPropagation()">
+      <app-post-card
+        [images]="getPostImageUrls(imageViewerPost)"
+        [currentIndex]="imageViewerPost.imageIndex || 0"
+        [aspectRatio]="'4/5'"
+        [objectFit]="'contain'"
+        [postId]="imageViewerPost.id"
+        [postType]="'post'"
+        [userId]="imageViewerPost.userId"
+        [username]="profileUser?.username || ''"
+        [userAvatar]="profileUser?.photoURL || ''"
+        [title]="imageViewerPost.title || ''"
+        [city]="imageViewerPost.location?.city || ''"
+        [country]="imageViewerPost.location?.country || ''"
+        [createdAt]="imageViewerPost.createdAt || ''"
+        [liked]="imageViewerPost.liked"
+        [likeCount]="imageViewerPost.likeCount || 0"
+        [commentCount]="imageViewerPost.commentCount || 0"
+        [bookmarked]="imageViewerPost.bookmarked"
+        [currentUid]="authService.currentUser()?.uid || ''"
+        (indexChange)="imageViewerPost.imageIndex = $event"
+        (likeChange)="imageViewerPost.liked = $event.liked; imageViewerPost.likeCount = $event.likeCount"
+        (bookmarkChange)="imageViewerPost.bookmarked = $event"
+        (commentsOpen)="openImagePostComments()"
+        (shareClick)="shareImagePost()"
+        (reportClick)="openContentReport($event)"
+        (blockClick)="blockUser()"
+        (saveToTrip)="toggleBookmark(imageViewerPost)"
+        (deleteClick)="deletePost(imageViewerPost)"
+      />
+    </div>
+  </div>
+}
+
+<app-comment-panel
+  [visible]="showImagePostComments"
+  collectionType="posts"
+  [itemId]="imageViewerPost?.id || ''"
+  [itemOwnerId]="imageViewerPost?.userId || ''"
+  [itemTitle]="imageViewerPost?.title || ''"
+  (closed)="closeImagePostComments()"
+  (commentCountChange)="onImagePostCommentCountChange($event)"
+/>
+
+@if (showReportPanel) {
+  <div class="report-backdrop" (click)="closeReportPanel()"></div>
+  <div class="report-panel">
+    <div class="report-header">
+      <h3>Report User</h3>
+      <button (click)="closeReportPanel()" aria-label="Close">
+        <span class="material-symbols-rounded">close</span>
+      </button>
+    </div>
+    @if (reportSuccess) {
+      <div class="report-body">
+        <span class="material-symbols-rounded report-icon">check_circle</span>
+        <p>Report submitted. We'll review it shortly.</p>
+        <button class="report-done-btn" (click)="closeReportPanel()">Done</button>
+      </div>
+    } @else {
+      <div class="report-body">
+        <p class="report-prompt">Why are you reporting this user?</p>
+        @for (reason of ['Spam', 'Harassment', 'Inappropriate content', 'Impersonation', 'Other']; track reason) {
+          <label class="report-option" [class.selected]="reportReason === reason">
+            <input type="radio" name="reportReason" [value]="reason" [(ngModel)]="reportReason">
+            {{ reason }}
+          </label>
+        }
+        <textarea [(ngModel)]="reportDetails" placeholder="Additional details (optional)" rows="3" aria-label="Report details"></textarea>
+        <button class="report-submit-btn" (click)="submitReport()" [disabled]="!reportReason || reportLoading">
+          {{ reportLoading ? 'Submitting...' : 'Submit Report' }}
+        </button>
+      </div>
+    }
+  </div>
+}
+
+@if (showCopiedToast) {
+  <div class="copied-toast">Link copied to clipboard</div>
+}
+
+<app-report-panel
+  [visible]="showContentReportPanel"
+  [contentId]="contentReportId"
+  [contentType]="contentReportType"
+  [contentOwnerId]="contentReportOwnerId"
+  (closed)="closeContentReport()"
+/>
+
+<app-trip-picker
+  [visible]="showTripPicker"
+  [trips]="tripPickerTrips"
+  (selected)="onTripSelected($event)"
+  (closed)="closeTripPicker()"
+  (tripCreated)="onTripCreated($event)"
+/>
+
+@if (showTripMap) {
+  <app-trip-map
+    [trip]="tripMapTrip"
+    [bookmarks]="tripMapBookmarks"
+    (closed)="showTripMap = false"
+    (pinClicked)="showTripMap = false; onSavedItemClick($event)"
   />
 }

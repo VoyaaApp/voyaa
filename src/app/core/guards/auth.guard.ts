@@ -7,7 +7,8 @@ export const authGuard = () => {
   const router = inject(Router);
 
   return new Promise<boolean>((resolve) => {
-    onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      unsubscribe();
       if (user) {
         resolve(true);
       } else {

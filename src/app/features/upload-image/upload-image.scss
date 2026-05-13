@@ -1,5 +1,5 @@
 .upload-image-page {
-  height: calc(100dvh - 56px);
+  height: var(--content-height);
   background: #0a0a0a;
   display: flex;
   flex-direction: column;
@@ -7,7 +7,7 @@
 
   @media (min-width: 768px) {
     height: 100dvh;
-    margin-left: 220px;
+    margin-left: var(--sidebar-width);
   }
 
   .upload-header {
@@ -225,6 +225,13 @@
 
 // ── Post details ──
 
+.details-scroll {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  min-height: 0;
+}
+
 .details-preview {
   padding: 16px 20px;
 
@@ -362,7 +369,7 @@
     border: 2px solid rgba(255, 255, 255, 0.15);
     border-top-color: #3891a6;
     border-radius: 50%;
-    animation: spin 0.6s linear infinite;
+    animation: spin var(--spin-speed) linear infinite;
   }
 }
 
@@ -395,6 +402,13 @@
       color: #3891a6;
     }
   }
+
+  &.above {
+    top: auto;
+    bottom: 100%;
+    margin-top: 0;
+    margin-bottom: 4px;
+  }
 }
 
 // ── Error ──
@@ -426,6 +440,3 @@
   }
 }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}

@@ -1,10 +1,10 @@
 <div class="messages-page">
   <div class="messages-header">
-    <button class="back-btn" (click)="goBack()">
+    <button class="back-btn" (click)="goBack()" aria-label="Go back">
       <span class="material-symbols-rounded">arrow_back</span>
     </button>
     <h1>Messages</h1>
-    <button class="new-btn" (click)="showSearch = !showSearch">
+    <button class="new-btn" (click)="showSearch = !showSearch" [attr.aria-label]="showSearch ? 'Cancel search' : 'New message'">
       <span class="material-symbols-rounded">{{ showSearch ? 'close' : 'edit_square' }}</span>
     </button>
   </div>

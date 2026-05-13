@@ -1,18 +1,19 @@
-import { Component, OnInit, OnDestroy, AfterViewInit, inject, ChangeDetectorRef, ElementRef, viewChild } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, ChangeDetectorRef, ChangeDetectionStrategy, ElementRef, viewChild } from '@angular/core';
 import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { collection, getDocs, doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db, auth } from '../../core/services/firebase.service';
 import { COUNTRY_COORDS, REGION_MAP, REGION_BOUNDS } from '../../shared/data/geo';
-import { formatCount } from '../../shared/utils/format';
+import { formatCount, getThumbUrl } from '../../shared/utils/format';
 
 declare const L: any;
 
 interface Destination {
   country: string;
-  videoCount: number;
+  postCount: number;
   cities: { name: string; count: number }[];
   thumbnail: string;
+  thumbnailType: 'video' | 'image';
 }
 
 interface CityMarker {
@@ -20,8 +21,18 @@ interface CityMarker {
   city: string;
   lat: number;
   lon: number;
-  videoCount: number;
+  postCount: number;
   thumbnail: string;
+  thumbnailType: 'video' | 'image';
+}
+
+interface CountryMarker {
+  country: string;
+  lat: number;
+  lon: number;
+  postCount: number;
+  thumbnail: string;
+  thumbnailType: 'video' | 'image';
 }
 
 @Component({
@@ -29,8 +40,9 @@ interface CityMarker {
   imports: [FormsModule],
   templateUrl: './globe.html',
   styleUrl: './globe.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class Globe implements OnInit, AfterViewInit, OnDestroy {
+export class Globe implements OnInit, OnDestroy {
   private router = inject(Router);
   private cdr = inject(ChangeDetectorRef);
   mapContainer = viewChild<ElementRef>('mapContainer');
@@ -38,6 +50,7 @@ export class Globe implements OnInit, AfterViewInit, OnDestroy {
   destinations: Destination[] = [];
   filteredDestinations: Destination[] = [];
   cityMarkers: CityMarker[] = [];
+  countryMarkers: CountryMarker[] = [];
   searchQuery = '';
   formatCount = formatCount;
 
@@ -49,13 +62,13 @@ export class Globe implements OnInit, AfterViewInit, OnDestroy {
   isFavourited = false;
 
   private map: any = null;
-  private markers: { marker: any; country: string; city: string }[] = [];
+  private markers: { marker: any; country: string; city: string; type: 'city' | 'country' }[] = [];
 
-  getThumbUrl(url: string): string {
-    if (!url) return '';
-    return url
-      .replace('/video/upload/', '/video/upload/so_0,w_400,h_500,c_fill,q_auto,f_auto/')
-      .replace(/\.[^.]+$/, '.jpg');
+  getThumbUrl = getThumbUrl;
+
+  getThumbnail(item: { thumbnail: string; thumbnailType: 'video' | 'image' }): string {
+    if (!item.thumbnail) return '';
+    return item.thumbnailType === 'video' ? this.getThumbUrl(item.thumbnail) : item.thumbnail;
   }
 
   private async geocodeCity(city: string, country: string): Promise<[number, number] | null> {
@@ -78,49 +91,62 @@ export class Globe implements OnInit, AfterViewInit, OnDestroy {
   }
 
   async ngOnInit() {
-    const snapshot = await getDocs(collection(db, 'videos'));
-    const allVideos = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    const [videoSnap, postSnap] = await Promise.all([
+      getDocs(collection(db, 'videos')),
+      getDocs(collection(db, 'posts')),
+    ]);
+    const allItems: any[] = [
+      ...videoSnap.docs.map(d => ({ id: d.id, ...d.data(), _type: 'video' })),
+      ...postSnap.docs.map(d => ({ id: d.id, ...d.data(), _type: 'post' })),
+    ];
 
-    const countryMap = new Map<string, { videos: any[]; cities: Map<string, number> }>();
-    const cityMap = new Map<string, { country: string; city: string; lat: number; lon: number; videos: any[] }>();
+    const countryMap = new Map<string, { items: any[]; cities: Map<string, number> }>();
+    const cityMap = new Map<string, { country: string; city: string; lat: number; lon: number; items: any[] }>();
 
-    for (const video of allVideos) {
-      const country = (video as any).location?.country;
-      const city = (video as any).location?.city;
+    for (const item of allItems) {
+      const country = item.location?.country;
+      const city = item.location?.city;
       if (!country) continue;
 
-      // Country-level grouping (for sidebar)
+      // Country-level grouping
       if (!countryMap.has(country)) {
-        countryMap.set(country, { videos: [], cities: new Map() });
+        countryMap.set(country, { items: [], cities: new Map() });
       }
       const entry = countryMap.get(country)!;
-      entry.videos.push(video);
+      entry.items.push(item);
       if (city) {
         entry.cities.set(city, (entry.cities.get(city) || 0) + 1);
       }
 
-      // City-level grouping (for markers)
-      const cityKey = `${country}|${city || 'Unknown'}`;
-      if (!cityMap.has(cityKey)) {
-        const loc = (video as any).location;
-        const hasCoords = loc?.lat && loc?.lon;
-        const lat = hasCoords ? loc.lat : 0;
-        const lon = hasCoords ? loc.lon : 0;
-        cityMap.set(cityKey, { country, city: city || 'Unknown', lat, lon, videos: [] });
+      // City-level grouping (only items with a city)
+      if (city) {
+        const cityKey = `${country}|${city}`;
+        if (!cityMap.has(cityKey)) {
+          const loc = item.location;
+          const hasCoords = loc?.lat && loc?.lon;
+          cityMap.set(cityKey, { country, city, lat: hasCoords ? loc.lat : 0, lon: hasCoords ? loc.lon : 0, items: [] });
+        }
+        cityMap.get(cityKey)!.items.push(item);
       }
-      cityMap.get(cityKey)!.videos.push(video);
     }
+
+    const pickThumb = (items: any[]) => {
+      const first = items[0];
+      if (!first) return { thumbnail: '', thumbnailType: 'image' as const };
+      if (first._type === 'video') return { thumbnail: first.cloudinaryUrl || '', thumbnailType: 'video' as const };
+      return { thumbnail: first.thumbnailUrl || first.images?.[0]?.url || '', thumbnailType: 'image' as const };
+    };
 
     this.destinations = Array.from(countryMap.entries())
       .map(([country, data]) => ({
         country,
-        videoCount: data.videos.length,
+        postCount: data.items.length,
         cities: Array.from(data.cities.entries())
           .map(([name, count]) => ({ name, count }))
           .sort((a, b) => b.count - a.count),
-        thumbnail: data.videos[0]?.cloudinaryUrl || '',
+        ...pickThumb(data.items),
       }))
-      .sort((a, b) => b.videoCount - a.videoCount);
+      .sort((a, b) => b.postCount - a.postCount);
 
     this.cityMarkers = Array.from(cityMap.values())
       .map(data => ({
@@ -128,20 +154,32 @@ export class Globe implements OnInit, AfterViewInit, OnDestroy {
         city: data.city,
         lat: data.lat,
         lon: data.lon,
-        videoCount: data.videos.length,
-        thumbnail: data.videos[0]?.cloudinaryUrl || '',
+        postCount: data.items.length,
+        ...pickThumb(data.items),
       }))
-      .sort((a, b) => b.videoCount - a.videoCount);
+      .sort((a, b) => b.postCount - a.postCount);
+
+    // Country markers — use country centroid coords
+    this.countryMarkers = this.destinations.map(d => {
+      const coords = COUNTRY_COORDS[d.country];
+      return {
+        country: d.country,
+        lat: coords ? coords[0] : 0,
+        lon: coords ? coords[1] : 0,
+        postCount: d.postCount,
+        thumbnail: d.thumbnail,
+        thumbnailType: d.thumbnailType,
+      };
+    });
 
     // Geocode cities that lack stored coordinates
-    const toGeocode = this.cityMarkers.filter(cm => !cm.lat && !cm.lon && cm.city !== 'Unknown');
+    const toGeocode = this.cityMarkers.filter(cm => !cm.lat && !cm.lon);
     for (const cm of toGeocode) {
       const coords = await this.geocodeCity(cm.city, cm.country);
       if (coords) {
         cm.lat = coords[0];
         cm.lon = coords[1];
       } else {
-        // Fallback to country centroid
         const fallback = COUNTRY_COORDS[cm.country];
         if (fallback) {
           cm.lat = fallback[0];
@@ -156,7 +194,6 @@ export class Globe implements OnInit, AfterViewInit, OnDestroy {
     setTimeout(() => this.initMap(), 50);
   }
 
-  ngAfterViewInit() {}
 
   ngOnDestroy() {
     if (this.map) {
@@ -191,21 +228,22 @@ export class Globe implements OnInit, AfterViewInit, OnDestroy {
       })
       .catch(() => {});
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
       subdomains: 'abcd',
     }).addTo(this.map);
 
     this.map.on('click', () => this.closePreview());
 
+    // City markers (teal)
     for (const cm of this.cityMarkers) {
       if (!cm.lat && !cm.lon) continue;
 
-      const size = Math.min(10 + cm.videoCount * 5, 28);
+      const size = Math.min(10 + cm.postCount * 5, 28);
       const icon = L.divIcon({
         className: 'map-marker',
         html: `<div class="marker-wrapper">
-                 <div class="marker-dot" style="width:${size}px;height:${size}px;">
-                   <span class="marker-count">${cm.videoCount}</span>
+                 <div class="marker-dot city" style="width:${size}px;height:${size}px;">
+                   <span class="marker-count">${cm.postCount}</span>
                  </div>
                  <span class="marker-label">${cm.city}</span>
                </div>`,
@@ -218,7 +256,46 @@ export class Globe implements OnInit, AfterViewInit, OnDestroy {
         e.originalEvent?.stopPropagation();
         this.selectCity(cm);
       });
-      this.markers.push({ marker, country: cm.country, city: cm.city });
+      this.markers.push({ marker, country: cm.country, city: cm.city, type: 'city' });
+    }
+
+    // Country markers (green)
+    for (const cm of this.countryMarkers) {
+      if (!cm.lat && !cm.lon) continue;
+
+      const size = Math.min(14 + cm.postCount * 4, 32);
+      const icon = L.divIcon({
+        className: 'map-marker',
+        html: `<div class="marker-wrapper">
+                 <div class="marker-dot country" style="width:${size}px;height:${size}px;">
+                   <span class="marker-count">${cm.postCount}</span>
+                 </div>
+                 <span class="marker-label">${cm.country}</span>
+               </div>`,
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2],
+      });
+
+      const marker = L.marker([cm.lat, cm.lon], { icon }).addTo(this.map);
+      marker.on('click', (e: any) => {
+        e.originalEvent?.stopPropagation();
+        this.selectCountryMarker(cm);
+      });
+      this.markers.push({ marker, country: cm.country, city: '', type: 'country' });
+    }
+  }
+
+  selectCountryMarker(cm: CountryMarker) {
+    // Find the matching destination for the preview card
+    const dest = this.destinations.find(d => d.country === cm.country);
+    if (dest) {
+      this.selectedDestination = dest;
+      this.selectedCity = null;
+      this.checkFavouriteStatus(cm.country);
+      this.cdr.detectChanges();
+      if (this.map) {
+        this.map.flyTo([cm.lat, cm.lon], 4, { duration: 1 });
+      }
     }
   }
 
@@ -253,8 +330,8 @@ export class Globe implements OnInit, AfterViewInit, OnDestroy {
 
   async toggleFavourite() {
     const uid = auth.currentUser?.uid;
-    if (!uid || !this.selectedDestination) return;
-    const country = this.selectedDestination.country;
+    const country = this.selectedDestination?.country || this.selectedCity?.country;
+    if (!uid || !country) return;
     const favRef = doc(db, 'users', uid, 'favouriteCountries', country);
     if (this.isFavourited) {
       await deleteDoc(favRef);
@@ -275,9 +352,10 @@ export class Globe implements OnInit, AfterViewInit, OnDestroy {
   }
 
   exploreDestination() {
-    const country = this.selectedCity?.country || this.selectedDestination?.country;
-    if (country) {
-      this.router.navigate(['/destination', country]);
+    if (this.selectedCity) {
+      this.router.navigate(['/destination', this.selectedCity.country, this.selectedCity.city]);
+    } else if (this.selectedDestination) {
+      this.router.navigate(['/destination', this.selectedDestination.country]);
     }
   }
 

@@ -2,17 +2,29 @@
   <img src="Voyaa-colour.png" alt="Voyaa" class="logo">
   <h1>Welcome Back</h1>
   <form (ngSubmit)="login()">
-    <input type="email" [(ngModel)]="email" name="email" placeholder="Email" required>
-    <div class="password-wrapper">
-      <input [type]="showPassword ? 'text' : 'password'" [(ngModel)]="password" name="password" placeholder="Password" required>
-      <button type="button" class="toggle-pw" (click)="showPassword = !showPassword">
-        <span class="material-symbols-rounded">{{ showPassword ? 'visibility_off' : 'visibility' }}</span>
-      </button>
+    <div class="field">
+      <input type="email" [(ngModel)]="email" name="email" placeholder="Email" required (blur)="validateEmail()" aria-label="Email address">
+      @if (emailError) {
+        <span class="field-error">{{ emailError }}</span>
+      }
     </div>
-    <button type="submit" [disabled]="isLoading">{{ isLoading ? 'Logging in...' : 'Log In' }}</button>
+    <div class="field">
+      <div class="password-wrapper">
+        <input [type]="showPassword ? 'text' : 'password'" [(ngModel)]="password" name="password" placeholder="Password" required (blur)="validatePassword()" aria-label="Password">
+        <button type="button" class="toggle-pw" (click)="showPassword = !showPassword" aria-label="Toggle password visibility">
+          <span class="material-symbols-rounded">{{ showPassword ? 'visibility_off' : 'visibility' }}</span>
+        </button>
+      </div>
+      <span class="char-hint">Minimum 8 characters</span>
+      @if (passwordError) {
+        <span class="field-error">{{ passwordError }}</span>
+      }
+    </div>
+    <button type="submit" [disabled]="isLoading || !email || !password">{{ isLoading ? 'Logging in...' : 'Log In' }}</button>
     @if (errorMessage) {
       <p class="error">{{ errorMessage }}</p>
     }
   </form>
+  <p class="forgot"><a routerLink="/forgot-password">Forgot password?</a></p>
   <p class="switch">Don't have an account? <a routerLink="/register">Sign up</a></p>
 </div>

@@ -1,8 +1,9 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, ChangeDetectorRef, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { doc, setDoc, collection, getDocs, query, where } from 'firebase/firestore';
+import { sendEmailVerification } from 'firebase/auth';
 import { db } from '../../core/services/firebase.service';
 import { COUNTRY_COORDS } from '../../shared/data/geo';
 
@@ -11,10 +12,12 @@ import { COUNTRY_COORDS } from '../../shared/data/geo';
   imports: [FormsModule, RouterLink],
   templateUrl: './register.html',
   styleUrl: './register.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class Register {
   private authService = inject(AuthService);
   private router = inject(Router);
+  private cdr = inject(ChangeDetectorRef);
 
   email = '';
   password = '';
@@ -36,6 +39,8 @@ export class Register {
   passwordError = '';
   emailError = '';
   showPassword = false;
+  agreedToTerms = false;
+  legalDialog: 'terms' | 'privacy' | null = null;
 
   days = Array.from({ length: 31 }, (_, i) => i + 1);
   months = [
@@ -64,8 +69,8 @@ export class Register {
       this.usernameError = `Username must be at most ${this.usernameMax} characters.`;
       return false;
     }
-    if (!/^[a-zA-Z0-9_]+$/.test(u)) {
-      this.usernameError = 'Only letters, numbers and underscores allowed.';
+    if (!/^[a-zA-Z0-9_. ]+$/.test(u)) {
+      this.usernameError = 'Only letters, numbers, spaces, underscores and dots allowed.';
       return false;
     }
     this.usernameError = '';
@@ -142,6 +147,7 @@ export class Register {
     if (!usernameSnap.empty) {
       this.errorMessage = 'This username is already taken.';
       this.isLoading = false;
+      this.cdr.markForCheck();
       return;
     }
 
@@ -151,11 +157,13 @@ export class Register {
     if (!emailSnap.empty) {
       this.errorMessage = 'An account with this email already exists.';
       this.isLoading = false;
+      this.cdr.markForCheck();
       return;
     }
 
     this.authService.register(this.email, this.password)
     .then((userCredential) => {
+      sendEmailVerification(userCredential.user).catch(() => {});
       return setDoc(doc(db, 'users', userCredential.user.uid), {
         username: this.username.trim(),
         email: this.email.trim(),
@@ -172,6 +180,7 @@ export class Register {
     })
     .finally(() => {
       this.isLoading = false;
+      this.cdr.markForCheck();
     });
   }
 }

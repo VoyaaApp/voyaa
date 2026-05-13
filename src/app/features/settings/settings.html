@@ -1,0 +1,223 @@
+<div class="settings-page">
+  <div class="settings-header">
+    <button class="back-btn" (click)="goBack()" aria-label="Go back">
+      <span class="material-symbols-rounded">arrow_back</span>
+    </button>
+    <h1>Settings</h1>
+  </div>
+
+  <div class="settings-content">
+    <!-- Account Section -->
+    <div class="section-label">Account</div>
+
+    <button class="settings-row" (click)="toggleSection('password')">
+      <span class="material-symbols-rounded">lock</span>
+      <span class="row-text">Change Password</span>
+      <span class="material-symbols-rounded arrow">{{ activeSection === 'password' ? 'expand_less' : 'expand_more' }}</span>
+    </button>
+    @if (activeSection === 'password') {
+      <div class="expand-section">
+        <input type="password" [(ngModel)]="currentPasswordForPw" placeholder="Current password" aria-label="Current password">
+        <input type="password" [(ngModel)]="newPassword" placeholder="New password (8–64 chars)" aria-label="New password">
+        <input type="password" [(ngModel)]="confirmPassword" placeholder="Confirm new password" aria-label="Confirm new password">
+        @if (pwError) { <p class="form-error">{{ pwError }}</p> }
+        @if (pwSuccess) { <p class="form-success">{{ pwSuccess }}</p> }
+        <button class="action-btn" (click)="changePassword()" [disabled]="pwLoading">
+          {{ pwLoading ? 'Changing...' : 'Change Password' }}
+        </button>
+      </div>
+    }
+
+    <button class="settings-row" (click)="toggleSection('email')">
+      <span class="material-symbols-rounded">email</span>
+      <span class="row-text">Change Email</span>
+      <span class="material-symbols-rounded arrow">{{ activeSection === 'email' ? 'expand_less' : 'expand_more' }}</span>
+    </button>
+    @if (activeSection === 'email') {
+      <div class="expand-section">
+        <input type="password" [(ngModel)]="currentPasswordForEmail" placeholder="Current password" aria-label="Current password">
+        <input type="email" [(ngModel)]="newEmail" placeholder="New email address" aria-label="New email address">
+        @if (emailError) { <p class="form-error">{{ emailError }}</p> }
+        @if (emailSuccess) { <p class="form-success">{{ emailSuccess }}</p> }
+        <button class="action-btn" (click)="changeEmail()" [disabled]="emailLoading">
+          {{ emailLoading ? 'Changing...' : 'Change Email' }}
+        </button>
+      </div>
+    }
+
+    <!-- Privacy Section -->
+    <div class="section-label">Privacy</div>
+
+    <div class="settings-row toggle-row" (click)="toggleAllowMessages()">
+      <span class="material-symbols-rounded">chat</span>
+      <span class="row-text">Messages from non-followers</span>
+      <div class="toggle" [class.active]="allowMessages">
+        <div class="toggle-knob"></div>
+      </div>
+    </div>
+
+    <button class="settings-row" (click)="toggleSection('blocked')">
+      <span class="material-symbols-rounded">block</span>
+      <span class="row-text">Blocked Users</span>
+      <span class="material-symbols-rounded arrow">{{ activeSection === 'blocked' ? 'expand_less' : 'expand_more' }}</span>
+    </button>
+    @if (activeSection === 'blocked') {
+      <div class="expand-section">
+        @if (blockedLoading) {
+          <p class="form-hint">Loading...</p>
+        } @else if (blockedUsers.length === 0) {
+          <p class="form-hint">No blocked users.</p>
+        } @else {
+          @for (user of blockedUsers; track user.id) {
+            <div class="blocked-row">
+              <span>{{ user.username }}</span>
+              <button class="unblock-btn" (click)="unblockUser(user.id)">Unblock</button>
+            </div>
+          }
+        }
+      </div>
+    }
+
+    <!-- About Section -->
+    <div class="section-label">About</div>
+
+    <button class="settings-row" (click)="legalDialog = 'terms'">
+      <span class="material-symbols-rounded">description</span>
+      <span class="row-text">Terms of Service</span>
+      <span class="material-symbols-rounded arrow">chevron_right</span>
+    </button>
+
+    <button class="settings-row" (click)="legalDialog = 'privacy'">
+      <span class="material-symbols-rounded">shield</span>
+      <span class="row-text">Privacy Policy</span>
+      <span class="material-symbols-rounded arrow">chevron_right</span>
+    </button>
+
+    <a class="settings-row" href="mailto:voyaaapp@gmail.com">
+      <span class="material-symbols-rounded">mail</span>
+      <span class="row-text">Contact Us</span>
+      <span class="material-symbols-rounded arrow">chevron_right</span>
+    </a>
+
+    <!-- Danger Zone -->
+    <div class="section-label danger">Danger Zone</div>
+
+    <button class="settings-row danger-row" (click)="toggleSection('delete')">
+      <span class="material-symbols-rounded">delete_forever</span>
+      <span class="row-text">Delete Account</span>
+      <span class="material-symbols-rounded arrow">{{ activeSection === 'delete' ? 'expand_less' : 'expand_more' }}</span>
+    </button>
+    @if (activeSection === 'delete') {
+      <div class="expand-section">
+        <p class="form-warning">This action is permanent. All your data will be deleted and cannot be recovered.</p>
+        <input type="password" [(ngModel)]="currentPasswordForDelete" placeholder="Enter your password" aria-label="Password to confirm deletion">
+        <input type="text" [(ngModel)]="deleteConfirmText" placeholder="Type DELETE to confirm" aria-label="Type DELETE to confirm">
+        @if (deleteError) { <p class="form-error">{{ deleteError }}</p> }
+        <button class="delete-btn" (click)="initiateDelete()" [disabled]="deleteLoading">
+          {{ deleteLoading ? 'Deleting...' : 'Delete My Account' }}
+        </button>
+      </div>
+    }
+
+    <!-- Logout -->
+    <button class="settings-row logout-row" (click)="logout()">
+      <span class="material-symbols-rounded">logout</span>
+      <span class="row-text">Log Out</span>
+    </button>
+  </div>
+
+  <!-- Confirm Dialogs -->
+  @if (showDeleteConfirm) {
+    <div class="confirm-backdrop" (click)="cancelDelete()"></div>
+    <div class="confirm-dialog">
+      <h3>Delete Account?</h3>
+      <p>This will permanently delete your account and all your data. This cannot be undone.</p>
+      <div class="confirm-actions">
+        <button class="cancel-btn" (click)="cancelDelete()">Cancel</button>
+        <button class="destructive-btn" (click)="confirmDelete()" [disabled]="deleteLoading">
+          {{ deleteLoading ? 'Deleting...' : 'Delete' }}
+        </button>
+      </div>
+    </div>
+  }
+
+  @if (showLogoutConfirm) {
+    <div class="confirm-backdrop" (click)="cancelLogout()"></div>
+    <div class="confirm-dialog">
+      <h3>Log Out?</h3>
+      <p>Are you sure you want to log out?</p>
+      <div class="confirm-actions">
+        <button class="cancel-btn" (click)="cancelLogout()">Cancel</button>
+        <button class="destructive-btn" (click)="confirmLogout()">Log Out</button>
+      </div>
+    </div>
+  }
+
+  @if (legalDialog) {
+    <div class="legal-backdrop" (click)="legalDialog = null"></div>
+    <div class="legal-dialog">
+      <div class="legal-dialog-header">
+        <h2>{{ legalDialog === 'terms' ? 'Terms of Service' : 'Privacy Policy' }}</h2>
+        <button (click)="legalDialog = null" aria-label="Close"><span class="material-symbols-rounded">close</span></button>
+      </div>
+      <div class="legal-dialog-body">
+        @if (legalDialog === 'terms') {
+          <p class="effective">Effective Date: May 11, 2026</p>
+          <h3>1. Acceptance of Terms</h3>
+          <p>By accessing or using Voyaa ("the App"), you agree to be bound by these Terms of Service. If you do not agree, do not use the App.</p>
+          <h3>2. Eligibility</h3>
+          <p>You must be at least 13 years old to use Voyaa. By registering, you represent that you meet this age requirement.</p>
+          <h3>3. Your Account</h3>
+          <p>You are responsible for maintaining the security of your account credentials. You agree not to share your password or allow others to access your account. You are responsible for all activity under your account.</p>
+          <h3>4. User Content</h3>
+          <p>You retain ownership of the content you post on Voyaa (photos, videos, text). By posting content, you grant Voyaa a non-exclusive, worldwide, royalty-free licence to display, distribute, and promote your content within the App.</p>
+          <p>You agree not to post content that:</p>
+          <ul><li>Is illegal, harmful, threatening, abusive, or harassing</li><li>Infringes on intellectual property rights of others</li><li>Contains sexually explicit material involving minors</li><li>Promotes violence, discrimination, or hate speech</li><li>Contains spam or misleading information</li></ul>
+          <h3>5. Prohibited Conduct</h3>
+          <p>You agree not to:</p>
+          <ul><li>Use the App for any unlawful purpose</li><li>Impersonate any person or entity</li><li>Attempt to gain unauthorised access to other users' accounts</li><li>Use automated systems or bots to access the App</li><li>Interfere with the proper functioning of the App</li></ul>
+          <h3>6. Content Moderation</h3>
+          <p>Voyaa reserves the right to remove any content that violates these Terms or is otherwise objectionable, without prior notice. We may also suspend or terminate accounts that repeatedly violate these Terms.</p>
+          <h3>7. Termination</h3>
+          <p>You may delete your account at any time through the Settings page. Voyaa may suspend or terminate your account for violations of these Terms. Upon termination, your data will be deleted in accordance with our Privacy Policy.</p>
+          <h3>8. Disclaimers</h3>
+          <p>Voyaa is provided "as is" without warranties of any kind. We do not guarantee the accuracy, completeness, or reliability of any content posted by users.</p>
+          <h3>9. Limitation of Liability</h3>
+          <p>To the maximum extent permitted by law, Voyaa shall not be liable for any indirect, incidental, special, or consequential damages arising from your use of the App.</p>
+          <h3>10. Changes to Terms</h3>
+          <p>We may update these Terms from time to time. Continued use of the App after changes constitutes acceptance of the updated Terms.</p>
+          <h3>11. Contact</h3>
+          <p>If you have questions about these Terms, please contact us through the App.</p>
+        } @else {
+          <p class="effective">Effective Date: May 11, 2026</p>
+          <h3>1. Information We Collect</h3>
+          <p>When you use Voyaa, we collect the following information:</p>
+          <ul><li><strong>Account Information:</strong> Email address, username, date of birth, nationality</li><li><strong>Profile Information:</strong> Profile photo, bio</li><li><strong>Content:</strong> Photos, videos, and text you post</li><li><strong>Usage Data:</strong> Interactions such as likes, comments, follows, bookmarks, and messages</li></ul>
+          <h3>2. How We Use Your Information</h3>
+          <p>We use your information to:</p>
+          <ul><li>Provide and maintain the App</li><li>Display your content to other users</li><li>Enable social features (following, messaging, commenting)</li><li>Enforce our Terms of Service and prevent abuse</li><li>Improve the App experience</li></ul>
+          <h3>3. Data Storage</h3>
+          <p>Your data is stored securely using Google Firebase (Firestore) with servers located in Europe (London, europe-west2). Media files are stored on Cloudinary's content delivery network.</p>
+          <h3>4. Data Sharing</h3>
+          <p>We do not sell your personal data. Your content is visible to other authenticated users of the App. We may share data with:</p>
+          <ul><li><strong>Service Providers:</strong> Firebase (authentication, database), Cloudinary (media hosting)</li><li><strong>Legal Requirements:</strong> When required by law or to protect rights and safety</li></ul>
+          <h3>5. Your Rights</h3>
+          <p>You have the right to:</p>
+          <ul><li><strong>Access:</strong> View your personal data through your profile</li><li><strong>Correction:</strong> Update your information via profile editing</li><li><strong>Deletion:</strong> Delete your account and all associated data through Settings</li><li><strong>Portability:</strong> Request a copy of your data</li></ul>
+          <h3>6. Account Deletion</h3>
+          <p>You may delete your account at any time from the Settings page. Upon deletion, we will remove your profile, posts, videos, messages, and all associated data. This action is permanent and cannot be undone.</p>
+          <h3>7. Children's Privacy</h3>
+          <p>Voyaa is not intended for children under 13. We do not knowingly collect data from children under 13. If we discover such data has been collected, we will delete it promptly.</p>
+          <h3>8. Security</h3>
+          <p>We implement security measures including Firebase Authentication and Firestore Security Rules to protect your data. However, no method of electronic transmission is 100% secure.</p>
+          <h3>9. Cookies</h3>
+          <p>Voyaa uses Firebase Authentication which stores session tokens locally on your device. We do not use tracking cookies or third-party analytics cookies.</p>
+          <h3>10. Changes to This Policy</h3>
+          <p>We may update this Privacy Policy from time to time. We will notify users of significant changes through the App.</p>
+          <h3>11. Contact</h3>
+          <p>If you have questions about this Privacy Policy or wish to exercise your data rights, please contact us through the App.</p>
+        }
+      </div>
+    </div>
+  }
+</div>

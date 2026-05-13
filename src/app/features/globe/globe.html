@@ -2,7 +2,7 @@
   <div class="map-container" #mapContainer></div>
 
   <!-- Back button -->
-  <button class="back-btn" (click)="goBack()">
+  <button class="back-btn" (click)="goBack()" aria-label="Go back">
     <span class="material-symbols-rounded">arrow_back</span>
   </button>
 
@@ -21,7 +21,7 @@
           <div class="search-item" (click)="selectSuggestion(dest)">
             <span class="material-symbols-rounded">location_on</span>
             <span>{{ dest.country }}</span>
-            <span class="search-item-meta">{{ dest.videoCount }} videos</span>
+            <span class="search-item-meta">{{ dest.postCount }} posts</span>
           </div>
         }
       </div>
@@ -42,7 +42,7 @@
     <div class="marker-preview" (click)="exploreDestination()">
       <div class="mp-thumb">
         @if (selectedCity.thumbnail) {
-          <img [src]="getThumbUrl(selectedCity.thumbnail)" alt="" loading="lazy">
+          <img [src]="getThumbnail(selectedCity)" alt="" loading="lazy">
         } @else {
           <div class="mp-placeholder">
             <span class="material-symbols-rounded">travel_explore</span>
@@ -51,7 +51,7 @@
       </div>
       <div class="mp-body">
         <span class="mp-country">{{ selectedCity.city }}</span>
-        <span class="mp-meta">{{ selectedCity.country }} · {{ formatCount(selectedCity.videoCount) }} videos</span>
+        <span class="mp-meta">{{ selectedCity.country }} · {{ formatCount(selectedCity.postCount) }} posts</span>
       </div>
       <button class="mp-fav" [class.active]="isFavourited" (click)="$event.stopPropagation(); toggleFavourite()">
         <span class="material-symbols-rounded">star</span>
@@ -67,7 +67,7 @@
     <div class="marker-preview" (click)="exploreDestination()">
       <div class="mp-thumb">
         @if (selectedDestination.thumbnail) {
-          <img [src]="getThumbUrl(selectedDestination.thumbnail)" alt="" loading="lazy">
+          <img [src]="getThumbnail(selectedDestination)" alt="" loading="lazy">
         } @else {
           <div class="mp-placeholder">
             <span class="material-symbols-rounded">travel_explore</span>
@@ -76,7 +76,7 @@
       </div>
       <div class="mp-body">
         <span class="mp-country">{{ selectedDestination.country }}</span>
-        <span class="mp-meta">{{ formatCount(selectedDestination.videoCount) }} videos · {{ selectedDestination.cities.slice(0, 2).map(c => c.name).join(', ') }}</span>
+        <span class="mp-meta">{{ formatCount(selectedDestination.postCount) }} posts · {{ selectedDestination.cities.slice(0, 2).map(c => c.name).join(', ') }}</span>
       </div>
       <button class="mp-fav" [class.active]="isFavourited" (click)="$event.stopPropagation(); toggleFavourite()">
         <span class="material-symbols-rounded">star</span>

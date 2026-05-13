@@ -6,10 +6,11 @@
       [(ngModel)]="searchQuery"
       placeholder="Search people..."
       (input)="onInputChange()"
+      (focus)="onFocus()"
       autofocus
     >
     @if (searchQuery) {
-      <button class="clear-btn" (click)="searchQuery = ''; results = []; hasSearched = false; cachedUsers = null">
+      <button class="clear-btn" (click)="searchQuery = ''; results = []; hasSearched = false; cachedUsers = null" aria-label="Clear search">
         <span class="material-symbols-rounded">close</span>
       </button>
     }
@@ -55,9 +56,32 @@
   }
 
   @if (!hasSearched && !searching) {
-    <div class="empty-state">
-      <span class="material-symbols-rounded">group</span>
-      <p>Search for people to follow</p>
-    </div>
+    @if (showSuggestions && suggestedUsers.length > 0) {
+      <div class="search-results">
+        <div class="suggestions-header">Suggested</div>
+        @for (user of suggestedUsers; track user.uid) {
+          <div class="result-item" (click)="goToProfile(user.uid)">
+            <div class="result-avatar">
+              @if (user.photoURL) {
+                <img [src]="user.photoURL" alt="avatar">
+              } @else {
+                <span class="material-symbols-rounded">account_circle</span>
+              }
+            </div>
+            <div class="result-info">
+              <span class="result-username">{{ user.username }}</span>
+              @if (user.bio) {
+                <span class="result-bio">{{ user.bio }}</span>
+              }
+            </div>
+          </div>
+        }
+      </div>
+    } @else {
+      <div class="empty-state">
+        <span class="material-symbols-rounded">group</span>
+        <p>Search for people to follow</p>
+      </div>
+    }
   }
 </div>

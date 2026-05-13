@@ -1,4 +1,4 @@
-import { Component, input, output } from '@angular/core';
+import { Component, input, output, HostListener } from '@angular/core';
 
 @Component({
   selector: 'app-confirm-dialog',
@@ -21,7 +21,7 @@ import { Component, input, output } from '@angular/core';
       position: fixed;
       inset: 0;
       background: rgba(0, 0, 0, 0.6);
-      z-index: 300;
+      z-index: 9998;
     }
 
     .dialog-box {
@@ -32,7 +32,7 @@ import { Component, input, output } from '@angular/core';
       background: #1a1a1a;
       border-radius: 14px;
       padding: 24px;
-      z-index: 301;
+      z-index: 9999;
       width: 280px;
       animation: dialogIn 0.2s ease-out;
     }
@@ -94,4 +94,9 @@ export class ConfirmDialog {
 
   confirmed = output();
   cancelled = output();
+
+  @HostListener('document:keydown.escape')
+  onEscape() {
+    if (this.visible()) this.cancelled.emit();
+  }
 }

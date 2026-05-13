@@ -1,0 +1,92 @@
+<div class="post-card">
+  <div class="carousel-wrapper" (click)="isVideo ? playVideo.emit() : onTap()">
+    @if (isVideo) {
+      <img class="video-thumb" [src]="images[0]" alt="" [style.aspect-ratio]="aspectRatio" [style.object-fit]="objectFit">
+      <div class="play-overlay">
+        <span class="material-symbols-rounded">play_arrow</span>
+      </div>
+    } @else {
+      <app-image-carousel
+        [images]="images"
+        [currentIndex]="currentIndex"
+        [aspectRatio]="aspectRatio"
+        [objectFit]="objectFit"
+        (indexChange)="indexChange.emit($event); currentIndex = $event"
+      />
+    }
+    @if (showHeart) {
+      <div class="heart-animation">
+        <span class="material-symbols-rounded">favorite</span>
+      </div>
+    }
+  </div>
+  <div class="info">
+    <div class="top-row">
+      <a class="user" [routerLink]="['/profile', userId]" (click)="profileClick.emit(userId)">
+        @if (userAvatar) {
+          <img class="avatar" [src]="userAvatar" alt="">
+        } @else {
+          <div class="avatar-placeholder">
+            <span class="material-symbols-rounded">person</span>
+          </div>
+        }
+        <span class="username">{{ username }}</span>
+      </a>
+    </div>
+    @if (title) {
+      <span class="title">{{ title }}</span>
+    }
+    @if (location) {
+      <div class="detail-row">
+        <a class="location-pill" [routerLink]="['/destination', country]" (click)="$event.stopPropagation(); locationClick.emit({ city: city, country: country })">
+          <span class="material-symbols-rounded">location_on</span>
+          <span>{{ location }}</span>
+        </a>
+        <span class="time">{{ timeAgoStr }}</span>
+      </div>
+    }
+    <div class="actions">
+      <button class="action" [class.liked]="liked" (click)="toggleLike()" aria-label="Like">
+        <span class="material-symbols-rounded">{{ liked ? 'favorite' : 'favorite_border' }}</span>
+        <span class="count">{{ formatCount(likeCount) }}</span>
+      </button>
+      <button class="action" (click)="commentsOpen.emit()" aria-label="Comments">
+        <span class="material-symbols-rounded">chat_bubble</span>
+        <span class="count">{{ formatCount(commentCount) }}</span>
+      </button>
+      <button class="action" (click)="shareClick.emit()" aria-label="Share">
+        <span class="material-symbols-rounded">share</span>
+      </button>
+      <button class="action" [class.bookmarked]="bookmarked" (click)="toggleBookmark()" aria-label="Save">
+        <span class="material-symbols-rounded">{{ bookmarked ? 'bookmark' : 'bookmark_border' }}</span>
+      </button>
+      @if (currentUid) {
+        <div class="menu-wrapper">
+          <button class="menu-btn" (click)="showMenu = !showMenu" aria-label="More options">
+            <span class="material-symbols-rounded">more_horiz</span>
+          </button>
+          @if (showMenu) {
+            <div class="menu-backdrop" (click)="showMenu = false"></div>
+            <div class="menu-dropdown">
+              @if (userId === currentUid) {
+                <button class="menu-item delete" (click)="showMenu = false; deleteClick.emit()">
+                  <span class="material-symbols-rounded">delete</span>
+                  Delete post
+                </button>
+              } @else {
+                <button class="menu-item" (click)="showMenu = false; reportClick.emit({ contentId: postId, contentType: postType, contentOwnerId: userId })">
+                  <span class="material-symbols-rounded">flag</span>
+                  Report
+                </button>
+                <button class="menu-item" (click)="showMenu = false; blockClick.emit(userId)">
+                  <span class="material-symbols-rounded">block</span>
+                  Block user
+                </button>
+              }
+            </div>
+          }
+        </div>
+      }
+    </div>
+  </div>
+</div>

@@ -1,11 +1,13 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/guards/auth.guard';
+import { guestGuard } from './core/guards/guest.guard';
 
 export const routes: Routes = [
     { path: '', redirectTo: 'explore', pathMatch: 'full' },
     { path: 'feed', loadComponent: () => import('./features/feed/feed').then(m => m.Feed), canActivate: [authGuard] },
     { path: 'explore', loadComponent: () => import('./features/explore/explore').then(m => m.Explore), canActivate: [authGuard] },
     { path: 'destination/:country', loadComponent: () => import('./features/destination/destination').then(m => m.Destination), canActivate: [authGuard] },
+    { path: 'destination/:country/:city', loadComponent: () => import('./features/destination/destination').then(m => m.Destination), canActivate: [authGuard] },
     { path: 'upload', loadComponent: () => import('./features/upload/upload').then(m => m.Upload), canActivate: [authGuard] },
     { path: 'upload-image', loadComponent: () => import('./features/upload-image/upload-image').then(m => m.UploadImage), canActivate: [authGuard] },
     { path: 'globe', loadComponent: () => import('./features/globe/globe').then(m => m.Globe), canActivate: [authGuard] },
@@ -15,6 +17,12 @@ export const routes: Routes = [
     { path: 'activity', loadComponent: () => import('./features/activity/activity').then(m => m.Activity), canActivate: [authGuard] },
     { path: 'messages', loadComponent: () => import('./features/messages/messages').then(m => m.Messages), canActivate: [authGuard] },
     { path: 'messages/:conversationId', loadComponent: () => import('./features/messages/chat').then(m => m.Chat), canActivate: [authGuard] },
-    { path: 'login', loadComponent: () => import('./features/auth/login').then(m => m.Login) },
-    { path: 'register', loadComponent: () => import('./features/auth/register').then(m => m.Register) },
+    { path: 'settings', loadComponent: () => import('./features/settings/settings').then(m => m.Settings), canActivate: [authGuard] },
+    { path: 'login', loadComponent: () => import('./features/auth/login').then(m => m.Login), canActivate: [guestGuard] },
+    { path: 'register', loadComponent: () => import('./features/auth/register').then(m => m.Register), canActivate: [guestGuard] },
+    { path: 'forgot-password', loadComponent: () => import('./features/auth/forgot-password/forgot-password').then(m => m.ForgotPassword), canActivate: [guestGuard] },
+    { path: 'reset-password', loadComponent: () => import('./features/auth/reset-password/reset-password').then(m => m.ResetPassword), canActivate: [guestGuard] },
+    { path: 'terms', loadComponent: () => import('./features/legal/terms').then(m => m.Terms) },
+    { path: 'privacy', loadComponent: () => import('./features/legal/privacy').then(m => m.Privacy) },
+    { path: '**', redirectTo: '/' },
 ];

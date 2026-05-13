@@ -1,10 +1,11 @@
-import { Component, OnInit, OnDestroy, inject, ChangeDetectorRef, ElementRef, viewChild, AfterViewChecked } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, ChangeDetectorRef, ChangeDetectionStrategy, ElementRef, viewChild, AfterViewChecked } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { Location } from '@angular/common';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, getDoc, updateDoc, increment } from 'firebase/firestore';
 import { db, auth } from '../../core/services/firebase.service';
 import { AuthService } from '../../core/services/auth.service';
+import { BlockService } from '../../core/services/block.service';
 
 interface ChatMessage {
   id: string;
@@ -18,6 +19,7 @@ interface ChatMessage {
   imports: [FormsModule],
   templateUrl: './chat.html',
   styleUrl: './chat.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class Chat implements OnInit, OnDestroy, AfterViewChecked {
   private route = inject(ActivatedRoute);
@@ -25,6 +27,7 @@ export class Chat implements OnInit, OnDestroy, AfterViewChecked {
   private cdr = inject(ChangeDetectorRef);
   private location = inject(Location);
   authService = inject(AuthService);
+  private blockService = inject(BlockService);
 
   messagesContainer = viewChild<ElementRef>('messagesContainer');
 
@@ -35,8 +38,13 @@ export class Chat implements OnInit, OnDestroy, AfterViewChecked {
   messages: ChatMessage[] = [];
   newMessage = '';
   loading = true;
+  isBlockedConversation = false;
+  sending = false;
+  sendError = false;
+  loadError = false;
   private unsubscribe: (() => void) | null = null;
   private shouldScroll = false;
+  private markedRead = false;
 
   ngOnInit() {
     this.conversationId = this.route.snapshot.paramMap.get('conversationId') || '';
@@ -59,7 +67,7 @@ export class Chat implements OnInit, OnDestroy, AfterViewChecked {
   }
 
   goBack() {
-    this.router.navigate(['/activity'], { queryParams: { tab: 'messages' }, replaceUrl: true });
+    this.router.navigate(['/messages'], { replaceUrl: true });
   }
 
   goToProfile() {
@@ -83,9 +91,22 @@ export class Chat implements OnInit, OnDestroy, AfterViewChecked {
           this.recipientName = userData['username'] || 'Unknown';
           this.recipientAvatar = userData['photoURL'] || '';
         }
+        // Check both directions of blocking
+        const uid = auth.currentUser?.uid;
+        if (uid) {
+          const [blockedByMe, blockedByThem] = await Promise.all([
+            getDoc(doc(db, 'users', uid, 'blockedUsers', this.recipientId)),
+            getDoc(doc(db, 'users', this.recipientId, 'blockedUsers', uid)),
+          ]);
+          this.isBlockedConversation = blockedByMe.exists() || blockedByThem.exists();
+        }
       }
       this.cdr.detectChanges();
-    } catch {}
+    } catch {
+      this.loadError = true;
+      this.loading = false;
+      this.cdr.detectChanges();
+    }
   }
 
   private loadMessages() {
@@ -103,18 +124,23 @@ export class Chat implements OnInit, OnDestroy, AfterViewChecked {
       }));
       this.loading = false;
       this.shouldScroll = true;
-      this.markAsRead();
+      if (!this.markedRead) {
+        this.markedRead = true;
+        this.markAsRead();
+      }
       this.cdr.detectChanges();
     });
   }
 
   async sendMessage() {
     const text = this.newMessage.trim();
-    if (!text) return;
+    if (!text || this.isBlockedConversation) return;
     const uid = auth.currentUser?.uid;
     if (!uid) return;
 
     this.newMessage = '';
+    this.sending = true;
+    this.cdr.detectChanges();
 
     try {
       await addDoc(collection(db, 'conversations', this.conversationId, 'messages'), {
@@ -141,16 +167,13 @@ export class Chat implements OnInit, OnDestroy, AfterViewChecked {
         this.shouldScroll = true;
         this.cdr.detectChanges();
       }
-    } catch {}
-  }
-
-  private async getUnreadCount(): Promise<number> {
-    try {
-      const convoDoc = await getDoc(doc(db, 'conversations', this.conversationId));
-      if (!convoDoc.exists()) return 0;
-      return convoDoc.data()['unreadCount_' + this.recipientId] || 0;
     } catch {
-      return 0;
+      this.sendError = true;
+      this.cdr.detectChanges();
+      setTimeout(() => { this.sendError = false; this.cdr.detectChanges(); }, 3000);
+    } finally {
+      this.sending = false;
+      this.cdr.detectChanges();
     }
   }
 
