@@ -1,0 +1,46 @@
+<div class="cropper-overlay" (click)="cancelled.emit()">
+  <div class="cropper-container" (click)="$event.stopPropagation()">
+    <div class="cropper-header">
+      <button class="cropper-btn cancel" (click)="cancelled.emit()">Cancel</button>
+      <span class="cropper-title">Move and Scale</span>
+      <button class="cropper-btn done" (click)="confirm()">Done</button>
+    </div>
+
+    <div class="crop-viewport">
+      <!-- Background dimmed image -->
+      <img
+        class="bg-img"
+        [src]="imageSource"
+        [style.width.px]="imgWidth"
+        [style.height.px]="imgHeight"
+        [style.transform]="imgTransform"
+        draggable="false"
+      >
+
+      <!-- Circle cutout area -->
+      <div
+        class="crop-area"
+        #cropArea
+        (pointerdown)="onPointerDown($event)"
+        (pointermove)="onPointerMove($event)"
+        (pointerup)="onPointerUp()"
+        (pointercancel)="onPointerUp()"
+        (touchstart)="onTouchStart($event)"
+        (touchmove)="onTouchMove($event)"
+      >
+        <img
+          #cropImg
+          class="crop-img"
+          [src]="imageSource"
+          [style.width.px]="imgWidth"
+          [style.height.px]="imgHeight"
+          [style.transform]="imgTransform"
+          (load)="onImageLoad()"
+          draggable="false"
+        >
+      </div>
+
+      <div class="circle-border"></div>
+    </div>
+  </div>
+</div>

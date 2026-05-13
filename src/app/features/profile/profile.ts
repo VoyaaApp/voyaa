@@ -11,6 +11,7 @@ import { TripService, Trip, WISHLIST_ID } from '../../core/services/trip.service
 import { TripMapView } from './trip-map/trip-map';
 import { CommentPanel } from '../../shared/components/comment-panel/comment-panel';
 import { PostCard } from '../../shared/components/post-card/post-card';
+import { AvatarCropper } from '../../shared/components/avatar-cropper/avatar-cropper';
 import { timeAgo } from '../../shared/utils/time';
 import { sharePost } from '../../shared/utils/share';
 import { db, auth } from '../../core/services/firebase.service';
@@ -20,7 +21,7 @@ import { COUNTRY_FLAGS, COUNTRY_CODES, REGION_MAP, COUNTRY_COORDS } from '../../
 
 @Component({
   selector: 'app-profile',
-  imports: [FormsModule, ConfirmDialog, RouterLink, PostCard, CommentPanel, ReportPanel, TripPicker, TripMapView],
+  imports: [FormsModule, ConfirmDialog, RouterLink, PostCard, CommentPanel, ReportPanel, TripPicker, TripMapView, AvatarCropper],
   templateUrl: './profile.html',
   styleUrl: './profile.scss',
 })
@@ -70,6 +71,7 @@ export class Profile implements OnInit, OnDestroy {
 
   viewerContainer = viewChild<ElementRef>('viewerContainer');
   viewerVideos = viewChildren<ElementRef>('viewerVideo');
+  avatarInput = viewChild<ElementRef>('avatarInput');
   private viewerObserver: IntersectionObserver | null = null;
   private viewerIndex = 0;
 
@@ -93,6 +95,10 @@ export class Profile implements OnInit, OnDestroy {
   readonly usernameMax = 20;
   readonly bioMax = 150;
   uploadingImage = false;
+  showCropper = false;
+  cropImageSource = '';
+  showAvatarMenu = false;
+  showPhotoViewer = false;
   loading = true;
   timeAgo = timeAgo;
   private pressTimer: any = null;
@@ -521,15 +527,53 @@ export class Profile implements OnInit, OnDestroy {
     this.cdr.detectChanges();
   }
 
-  async onAvatarPick(event: Event) {
+  onAvatarClick() {
+    if (!this.profileUser?.photoURL) {
+      // No photo yet — if own profile, open file picker directly
+      if (this.isOwnProfile) this.avatarInput()?.nativeElement.click();
+      return;
+    }
+    if (this.isOwnProfile) {
+      this.showAvatarMenu = true;
+    } else {
+      this.showPhotoViewer = true;
+    }
+  }
+
+  viewProfilePhoto() {
+    this.showAvatarMenu = false;
+    this.showPhotoViewer = true;
+  }
+
+  addNewProfilePhoto() {
+    this.showAvatarMenu = false;
+    this.cdr.detectChanges();
+    setTimeout(() => this.avatarInput()?.nativeElement.click());
+  }
+
+  onAvatarPick(event: Event) {
     const file = (event.target as HTMLInputElement).files?.[0];
     if (!file) return;
 
+    const reader = new FileReader();
+    reader.onload = () => {
+      this.cropImageSource = reader.result as string;
+      this.showCropper = true;
+      this.cdr.detectChanges();
+    };
+    reader.readAsDataURL(file);
+
+    // Reset so picking the same file again still triggers change
+    (event.target as HTMLInputElement).value = '';
+  }
+
+  async onAvatarCropped(blob: Blob) {
+    this.showCropper = false;
     this.uploadingImage = true;
     this.cdr.detectChanges();
 
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('file', blob, 'avatar.jpg');
     formData.append('upload_preset', environment.cloudinary.uploadPreset);
     formData.append('folder', 'voyaa_avatars');
 

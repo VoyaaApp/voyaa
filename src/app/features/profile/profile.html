@@ -7,6 +7,47 @@
   (cancelled)="onCancelled()"
 />
 
+@if (showCropper) {
+  <app-avatar-cropper
+    [imageSource]="cropImageSource"
+    (cropped)="onAvatarCropped($event)"
+    (cancelled)="showCropper = false"
+  />
+}
+
+@if (showAvatarMenu) {
+  <div class="avatar-menu-overlay" (click)="showAvatarMenu = false">
+    <div class="avatar-menu" (click)="$event.stopPropagation()">
+      <button class="avatar-menu-item" (click)="viewProfilePhoto()">
+        <span class="material-symbols-rounded">visibility</span>
+        View Profile Photo
+      </button>
+      <button class="avatar-menu-item" (click)="addNewProfilePhoto()">
+        <span class="material-symbols-rounded">add_a_photo</span>
+        New Profile Photo
+      </button>
+      <button class="avatar-menu-item cancel" (click)="showAvatarMenu = false">
+        Cancel
+      </button>
+    </div>
+  </div>
+}
+
+@if (showPhotoViewer) {
+  <div class="photo-viewer-overlay" (click)="showPhotoViewer = false">
+    <button class="photo-viewer-close" (click)="showPhotoViewer = false">
+      <span class="material-symbols-rounded">close</span>
+    </button>
+    <img
+      class="photo-viewer-img"
+      [src]="profileUser.photoURL"
+      alt="Profile photo"
+      (click)="$event.stopPropagation()"
+    >
+    <span class="photo-viewer-username">{{ profileUser.username }}</span>
+  </div>
+}
+
 @if (showUserList) {
   <div class="user-list-overlay">
     <div class="user-list-topbar">
@@ -92,7 +133,7 @@
   <div class="profile-page">
     <div class="profile-details">
       <div class="top-row">
-        <div class="avatar-section" (click)="isOwnProfile && avatarInput.click()">
+        <div class="avatar-section" (click)="onAvatarClick()">
           @if (profileUser.photoURL) {
             <img class="avatar-img" [src]="profileUser.photoURL" alt="Profile photo">
           } @else {
