@@ -41,6 +41,7 @@ export class Upload implements OnDestroy {
   uploadProgress = 0;
   uploadStatus = '';
   errorMessage = '';
+  showSuccessToast = false;
 
   // Location autocomplete
   locationQuery = '';

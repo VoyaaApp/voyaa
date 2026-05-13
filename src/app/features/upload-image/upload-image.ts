@@ -45,6 +45,7 @@ export class UploadImage implements OnDestroy {
   uploadProgress = 0;
   uploadStatus = '';
   errorMessage = '';
+  showSuccessToast = false;
 
   // Location
   locationQuery = '';

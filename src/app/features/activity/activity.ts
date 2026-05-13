@@ -16,6 +16,7 @@ import { RouterLink } from '@angular/router';
 export class Activity implements OnInit {
   notifications: any[] = [];
   loading = true;
+  loadError = false;
   timeAgo = timeAgo;
 
   authService = inject(AuthService);
@@ -30,30 +31,43 @@ export class Activity implements OnInit {
     await this.loadNotifications();
   }
 
+  retryLoad() {
+    this.loading = true;
+    this.loadError = false;
+    this.cdr.detectChanges();
+    this.loadNotifications();
+  }
+
   // ── Notifications ──
 
   private async loadNotifications() {
     const uid = this.authService.currentUser()?.uid;
     if (!uid) return;
 
-    const q = query(
-      collection(db, 'users', uid, 'notifications'),
-      orderBy('createdAt', 'desc')
-    );
-    const snapshot = await getDocs(q);
-    this.notifications = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    try {
+      const q = query(
+        collection(db, 'users', uid, 'notifications'),
+        orderBy('createdAt', 'desc')
+      );
+      const snapshot = await getDocs(q);
+      this.notifications = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
 
-    const unread = this.notifications.filter(n => !n.read);
-    if (unread.length > 0) {
-      const batch = writeBatch(db);
-      for (const notif of unread) {
-        batch.update(doc(db, 'users', uid, 'notifications', notif.id), { read: true });
+      const unread = this.notifications.filter(n => !n.read);
+      if (unread.length > 0) {
+        const batch = writeBatch(db);
+        for (const notif of unread) {
+          batch.update(doc(db, 'users', uid, 'notifications', notif.id), { read: true });
+        }
+        await batch.commit();
       }
-      await batch.commit();
-    }
 
-    this.loading = false;
-    this.cdr.detectChanges();
+      this.loading = false;
+      this.cdr.detectChanges();
+    } catch {
+      this.loading = false;
+      this.loadError = true;
+      this.cdr.detectChanges();
+    }
   }
 
   getIcon(type: string): string {

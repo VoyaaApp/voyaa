@@ -38,6 +38,10 @@ export class Destination implements OnInit, AfterViewInit, OnDestroy {
   city = '';
   feedItems: any[] = [];
   loading = true;
+  loadError = false;
+  deleteError = false;
+  showDeleteConfirm = false;
+  private pendingDeleteItem: any = null;
   timeAgo = timeAgo;
   formatCount = formatCount;
 
@@ -96,64 +100,70 @@ export class Destination implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
 
-    await this.blockService.ensureLoaded();
+    try {
+      await this.blockService.ensureLoaded();
 
-    // Fetch both collections filtered by country
-    const videoQ = query(collection(db, 'videos'), where('location.country', '==', this.country));
-    const postQ = query(collection(db, 'posts'), where('location.country', '==', this.country));
-    const [videoSnap, postSnap] = await Promise.all([getDocs(videoQ), getDocs(postQ)]);
+      // Fetch both collections filtered by country
+      const videoQ = query(collection(db, 'videos'), where('location.country', '==', this.country));
+      const postQ = query(collection(db, 'posts'), where('location.country', '==', this.country));
+      const [videoSnap, postSnap] = await Promise.all([getDocs(videoQ), getDocs(postQ)]);
 
-    let items: any[] = [
-      ...videoSnap.docs.map(d => ({ id: d.id, ...d.data(), _type: 'video', liked: false, bookmarked: false, username: '', photoURL: '' })),
-      ...postSnap.docs.map(d => ({ id: d.id, ...d.data(), _type: 'post', liked: false, bookmarked: false, username: '', photoURL: '' })),
-    ].filter((i: any) => !this.blockService.isBlocked(i.userId));
+      let items: any[] = [
+        ...videoSnap.docs.map(d => ({ id: d.id, ...d.data(), _type: 'video', liked: false, bookmarked: false, username: '', photoURL: '' })),
+        ...postSnap.docs.map(d => ({ id: d.id, ...d.data(), _type: 'post', liked: false, bookmarked: false, username: '', photoURL: '' })),
+      ].filter((i: any) => !this.blockService.isBlocked(i.userId));
 
-    // Filter by city if specified
-    if (this.city) {
-      items = items.filter(i => i.location?.city === this.city);
-    }
-
-    // Fetch user data
-    const userId = this.authService.currentUser()?.uid;
-    const userIds = [...new Set(items.map(i => i.userId))];
-    const userCache = new Map<string, any>();
-    await Promise.all(userIds.map(async (uid) => {
-      const userDoc = await getDoc(doc(db, 'users', uid));
-      if (userDoc.exists()) userCache.set(uid, userDoc.data());
-    }));
-
-    for (const item of items) {
-      const userData = userCache.get(item.userId);
-      if (userData) {
-        item.username = userData['username'];
-        item.photoURL = userData['photoURL'] || '';
+      // Filter by city if specified
+      if (this.city) {
+        items = items.filter(i => i.location?.city === this.city);
       }
-    }
 
-    // Fetch like/bookmark state
-    if (userId) {
-      await Promise.all(items.map(async (item) => {
-        const collName = item._type === 'video' ? 'videos' : 'posts';
-        const [likeDoc, bookmarkDoc] = await Promise.all([
-          getDoc(doc(db, collName, item.id, 'likes', userId)),
-          getDoc(doc(db, 'users', userId, 'bookmarks', item.id)),
-        ]);
-        item.liked = likeDoc.exists();
-        item.bookmarked = bookmarkDoc.exists();
+      // Fetch user data
+      const userId = this.authService.currentUser()?.uid;
+      const userIds = [...new Set(items.map(i => i.userId))];
+      const userCache = new Map<string, any>();
+      await Promise.all(userIds.map(async (uid) => {
+        const userDoc = await getDoc(doc(db, 'users', uid));
+        if (userDoc.exists()) userCache.set(uid, userDoc.data());
       }));
+
+      for (const item of items) {
+        const userData = userCache.get(item.userId);
+        if (userData) {
+          item.username = userData['username'];
+          item.photoURL = userData['photoURL'] || '';
+        }
+      }
+
+      // Fetch like/bookmark state
+      if (userId) {
+        await Promise.all(items.map(async (item) => {
+          const collName = item._type === 'video' ? 'videos' : 'posts';
+          const [likeDoc, bookmarkDoc] = await Promise.all([
+            getDoc(doc(db, collName, item.id, 'likes', userId)),
+            getDoc(doc(db, 'users', userId, 'bookmarks', item.id)),
+          ]);
+          item.liked = likeDoc.exists();
+          item.bookmarked = bookmarkDoc.exists();
+        }));
+      }
+
+      // Sort by createdAt descending
+      items.sort((a, b) => {
+        const aTime = a.createdAt?.seconds || a.createdAt || '';
+        const bTime = b.createdAt?.seconds || b.createdAt || '';
+        return bTime > aTime ? 1 : bTime < aTime ? -1 : 0;
+      });
+
+      this.feedItems = items;
+      this.loading = false;
+      this.cdr.detectChanges();
+      setTimeout(() => this.setupVideoObserver());
+    } catch {
+      this.loading = false;
+      this.loadError = true;
+      this.cdr.detectChanges();
     }
-
-    // Sort by createdAt descending
-    items.sort((a, b) => {
-      const aTime = a.createdAt?.seconds || a.createdAt || '';
-      const bTime = b.createdAt?.seconds || b.createdAt || '';
-      return bTime > aTime ? 1 : bTime < aTime ? -1 : 0;
-    });
-
-    this.feedItems = items;
-    this.loading = false;
-    this.cdr.detectChanges();
-    setTimeout(() => this.setupVideoObserver());
   }
 
   ngAfterViewInit() {
@@ -336,11 +346,36 @@ export class Destination implements OnInit, AfterViewInit, OnDestroy {
     this.showBlockConfirm = false;
   }
 
-  async deleteVideo(item: any) {
-    if (!confirm('Delete this video?')) return;
-    const { deleteDoc, doc: fbDoc } = await import('firebase/firestore');
-    await deleteDoc(fbDoc(db, 'videos', item.id));
-    this.feedItems = this.feedItems.filter(i => i.id !== item.id);
+  deleteVideo(item: any) {
+    this.pendingDeleteItem = item;
+    this.showDeleteConfirm = true;
     this.cdr.detectChanges();
+  }
+
+  async doDeleteVideo() {
+    if (!this.pendingDeleteItem) return;
+    this.showDeleteConfirm = false;
+    try {
+      const { deleteDoc, doc: fbDoc } = await import('firebase/firestore');
+      await deleteDoc(fbDoc(db, 'videos', this.pendingDeleteItem.id));
+      this.feedItems = this.feedItems.filter(i => i.id !== this.pendingDeleteItem.id);
+    } catch {
+      this.deleteError = true;
+      setTimeout(() => { this.deleteError = false; this.cdr.detectChanges(); }, 3000);
+    }
+    this.pendingDeleteItem = null;
+    this.cdr.detectChanges();
+  }
+
+  cancelDeleteVideo() {
+    this.showDeleteConfirm = false;
+    this.pendingDeleteItem = null;
+  }
+
+  loadContent() {
+    this.loading = true;
+    this.loadError = false;
+    this.cdr.detectChanges();
+    this.ngOnInit();
   }
 }
