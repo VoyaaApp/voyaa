@@ -7,14 +7,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { db } from '../../core/services/firebase.service';
 import { collection, addDoc } from 'firebase/firestore';
 import { ContentFilterService } from '../../core/services/content-filter.service';
-
-interface LocationSuggestion {
-  display: string;
-  city: string;
-  country: string;
-  lat: number;
-  lon: number;
-}
+import { LocationSearchService, LocationSuggestion } from '../../core/services/location-search.service';
 
 @Component({
   selector: 'app-upload',
@@ -29,6 +22,7 @@ export class Upload implements OnDestroy {
   private authService = inject(AuthService);
   private cdr = inject(ChangeDetectorRef);
   private contentFilter = inject(ContentFilterService);
+  private locationSearch = inject(LocationSearchService);
 
   goBack() {
     this.location.back();
@@ -53,13 +47,12 @@ export class Upload implements OnDestroy {
   locationSuggestions: LocationSuggestion[] = [];
   showLocationDropdown = false;
   isSearchingLocation = false;
-  private searchTimer: any = null;
 
   ngOnDestroy() {
     if (this.videoPreviewUrl) {
       URL.revokeObjectURL(this.videoPreviewUrl);
     }
-    clearTimeout(this.searchTimer);
+    this.locationSearch.cancel();
   }
 
   onFileSelected(event: Event) {
@@ -75,55 +68,12 @@ export class Upload implements OnDestroy {
   }
 
   onLocationInput() {
-    clearTimeout(this.searchTimer);
-    const q = this.locationQuery.trim();
-    if (q.length < 2) {
-      this.locationSuggestions = [];
-      this.showLocationDropdown = false;
-      return;
-    }
-    this.isSearchingLocation = true;
-    this.searchTimer = setTimeout(() => this.searchLocations(q), 400);
-  }
-
-  async searchLocations(query: string) {
-    try {
-      const params = new URLSearchParams({
-        q: query,
-        format: 'json',
-        addressdetails: '1',
-        limit: '8',
-        'accept-language': 'en',
-        dedupe: '1',
-      });
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
-        headers: { 'User-Agent': 'Voyaa/1.0' },
-      });
-      const results = await res.json();
-
-      this.locationSuggestions = results
-        .map((r: any) => {
-          const addr = r.address || {};
-          const city = addr.city || addr.town || addr.village || addr.county || addr.state || '';
-          const country = addr.country || '';
-          if (!country) return null;
-          const display = city ? `${city}, ${country}` : country;
-          return { display, city, country, lat: parseFloat(r.lat), lon: parseFloat(r.lon) };
-        })
-        .filter((s: any): s is LocationSuggestion => s !== null)
-        // Deduplicate by display string
-        .filter((s: LocationSuggestion, i: number, arr: LocationSuggestion[]) =>
-          arr.findIndex(x => x.display === s.display) === i
-        );
-
-      this.showLocationDropdown = this.locationSuggestions.length > 0;
-    } catch {
-      this.locationSuggestions = [];
-      this.showLocationDropdown = false;
-    } finally {
-      this.isSearchingLocation = false;
+    this.locationSearch.search(this.locationQuery, (results, loading) => {
+      this.locationSuggestions = results;
+      this.isSearchingLocation = loading;
+      this.showLocationDropdown = results.length > 0;
       this.cdr.detectChanges();
-    }
+    });
   }
 
   selectLocation(suggestion: LocationSuggestion) {
@@ -149,7 +99,7 @@ export class Upload implements OnDestroy {
   }
 
   async upload() {
-    if (!this.selectedFile || !this.title || !this.locationCountry || !this.locationCity) {
+    if (!this.selectedFile || !this.title || !this.locationCountry) {
       this.errorMessage = 'Please fill in all fields and select a video.';
       return;
     }

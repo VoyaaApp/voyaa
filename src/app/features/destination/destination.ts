@@ -352,12 +352,19 @@ export class Destination implements OnInit, AfterViewInit, OnDestroy {
     this.cdr.detectChanges();
   }
 
+  deletePost(item: any) {
+    this.pendingDeleteItem = item;
+    this.showDeleteConfirm = true;
+    this.cdr.detectChanges();
+  }
+
   async doDeleteVideo() {
     if (!this.pendingDeleteItem) return;
     this.showDeleteConfirm = false;
     try {
       const { deleteDoc, doc: fbDoc } = await import('firebase/firestore');
-      await deleteDoc(fbDoc(db, 'videos', this.pendingDeleteItem.id));
+      const col = this.pendingDeleteItem._type === 'video' ? 'videos' : 'posts';
+      await deleteDoc(fbDoc(db, col, this.pendingDeleteItem.id));
       this.feedItems = this.feedItems.filter(i => i.id !== this.pendingDeleteItem.id);
     } catch {
       this.deleteError = true;
